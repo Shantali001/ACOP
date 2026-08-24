@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">AMSAF Logo Placeholder</title>
+  <desc id="desc">Placeholder AMSAF mark for early ACOP scaffolding.</desc>
+  <rect width="512" height="512" rx="96" fill="#0f5132"/>
+  <circle cx="256" cy="220" r="130" fill="#f2c94c"/>
+  <path d="M149 294c32 49 69 74 112 74 42 0 77-24 103-72-30 17-65 25-104 25-41 0-78-9-111-27z" fill="#ffffff"/>
+  <text x="256" y="242" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="86" font-weight="700" fill="#0f5132">A</text>
+  <text x="256" y="432" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700" fill="#ffffff">AMSAF</text>
+</svg>

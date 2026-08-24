@@ -1,0 +1,5 @@
+import type { AuditLogResponse } from './types';
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+async function parseError(response: Response) { try { const body = await response.json() as { message?: string }; return body.message ?? 'Request failed.'; } catch { return 'Request failed.'; } }
+function authHeaders(token: string) { return { Authorization: `Bearer ${token}` }; }
+export async function listAuditLogs(token: string, filters: Record<string, string>) { const params = new URLSearchParams(); Object.entries(filters).forEach(([key, value]) => { if (value.trim()) params.set(key, value.trim()); }); const r = await fetch(`${apiBaseUrl}/audit-logs?${params.toString()}`, { headers: authHeaders(token) }); if (!r.ok) throw new Error(await parseError(r)); return await r.json() as AuditLogResponse; }

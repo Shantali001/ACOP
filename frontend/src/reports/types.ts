@@ -1,0 +1,3 @@
+export type OverallReport = { totalCalls: number; callsToday: number; callsThisWeek: number; callsThisMonth: number };
+export type AgentReport = { agentId: string; fullName: string; email: string; callsMade: number; customersRemaining: number; averageDuration: number; successRate: number };
+export type CampaignReport = { campaignId: string; campaignName: string; status: string; progress: number; completed: number; pending: number };

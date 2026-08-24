@@ -1,0 +1,2 @@
+export type AuditLog = { id: string; userId: string | null; userName: string | null; userEmail: string | null; action: string; entityType: string | null; entityId: string | null; metadata: unknown; createdAt: string };
+export type AuditLogResponse = { data: AuditLog[] };
