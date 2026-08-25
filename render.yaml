@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: acop-backend
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && node dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: acop-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN_SECONDS
+        value: 3600
+      - key: FRONTEND_ORIGIN
+        fromFrontend:
+          type: static
+          property: url
+      - key: FRONTEND_ORIGINS
+        value: http://localhost:5173,http://192.168.1.28:5173
+      - key: VERIFY_DB_ON_STARTUP
+        value: true
+      - key: MODEM_DRIVER
+        value: serial
+
+databases:
+  - name: acop-db
+    databaseName: acop
+    plan: free
