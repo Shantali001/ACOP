@@ -46,10 +46,10 @@
    - **Root Directory**: `frontend`
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
-5. Add Environment Variables:
-   - `VITE_API_BASE_URL=https://your-render-backend.onrender.com`
-   - `VITE_SUPABASE_URL=https://yvvxenphsotorklcsfpk.supabase.co`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_EYs9Mu0_NQS8_jQgKaxYkQ_4N5lwl2C`
+5. Add Environment Variables in Vercel UI:
+   - `VITE_API_BASE_URL` = `https://your-render-backend.onrender.com`
+   - `VITE_SUPABASE_URL` = `https://yvvxenphsotorklcsfpk.supabase.co`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` = `sb_publishable_EYs9Mu0_NQS8_jQgKaxYkQ_4N5lwl2C`
 6. Click **Deploy**
 7. Wait ~1-2 minutes
 8. Copy the Vercel URL, e.g. `https://acop.vercel.app`
