@@ -1,133 +1,83 @@
 # ACOP Deployment Guide
 
 ## Prerequisites
+- GitHub account with repo: https://github.com/Shantali001/ACOP
+- Render account (free): https://render.com
+- Vercel account (free): https://vercel.com
+- Supabase project with PostgreSQL database
 
-- Node.js 20+
-- npm 10+
-- PostgreSQL with `pgcrypto` enabled
-- A production `backend/.env`
-- A production `frontend/.env`
+## Step 1: Deploy Backend to Render
 
-## Database Setup
+1. Go to https://render.com and sign up/login
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub account and select the `ACOP` repository
+4. Configure:
+   - **Name**: `acop-backend`
+   - **Environment**: `Node`
+   - **Build Command**: `cd backend && npm install && npm run build`
+   - **Start Command**: `cd backend && node dist/server.js`
+   - **Plan**: Free
+5. Add these environment variables:
+   ```
+   NODE_ENV=production
+   PORT=4000
+   DATABASE_URL=<your-supabase-postgres-url>
+   DATABASE_SSL=false
+   JWT_SECRET=<generate-a-secure-random-string>
+   JWT_EXPIRES_IN_SECONDS=3600
+   FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
+   VERIFY_DB_ON_STARTUP=true
+   MODEM_DRIVER=serial
+   ```
+6. Click **"Create Web Service"**
+7. Wait for deployment to complete (~2-3 minutes)
+8. Copy the Render URL (e.g., `https://acop-backend.onrender.com`)
 
-Run the original blueprint schema first:
+## Step 2: Deploy Frontend to Vercel
 
-```sql
--- Apply 001_init_schema.sql from the ACOP blueprint package.
-```
+1. Go to https://vercel.com and sign up/login
+2. Click **"Add New..."** → **"Project"**
+3. Import your `ACOP` repository
+4. Configure:
+   - **Framework Preset**: Vite
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+5. Add these environment variables:
+   ```
+   VITE_API_BASE_URL=https://your-render-backend.onrender.com
+   VITE_SUPABASE_URL=https://yvvxenphsotorklcsfpk.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_EYs9Mu0_NQS8_jQgKaxYkQ_4N5lwl2C
+   ```
+6. Click **"Deploy"**
+7. Wait for deployment (~1-2 minutes)
+8. Copy the Vercel URL (e.g., `https://acop.vercel.app`)
 
-Then apply repository migrations in order:
+## Step 3: Update Backend CORS
 
-```bash
-psql "$DATABASE_URL" -f backend/src/db/migrations/002_notifications.sql
-psql "$DATABASE_URL" -f backend/src/db/migrations/003_audit_logs.sql
-psql "$DATABASE_URL" -f backend/src/db/migrations/004_settings.sql
-```
+1. Go back to Render → your backend service
+2. Go to **Environment** tab
+3. Update `FRONTEND_ORIGIN` to your Vercel URL
+4. Save and redeploy
 
-The prompt for Phase 8 specifically calls out `002_notifications.sql`; Phase 9 also needs `003_audit_logs.sql` and `004_settings.sql` for audit logs and system settings.
+## Step 4: Run Database Migration
 
-## Backend Environment
+1. In Render, go to your backend service
+2. Click **"Shell"** tab
+3. Run:
+   ```bash
+   psql $DATABASE_URL -f backend/src/db/migrations/008_election_monitoring.sql
+   ```
 
-Copy `backend/.env.example` to `backend/.env` and set production values:
+## Step 5: Access Your App
 
-```bash
-PORT=4000
-NODE_ENV=production
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/acop
-DATABASE_SSL=true
-JWT_SECRET=use-a-long-random-production-secret
-JWT_EXPIRES_IN_SECONDS=3600
-FRONTEND_ORIGIN=https://your-frontend-domain.example
-VERIFY_DB_ON_STARTUP=true
-MODEM_DRIVER=mock
-MODEM_SERIAL_PORT=COM3
-```
+- **Frontend**: `https://your-app.vercel.app`
+- **Backend API**: `https://your-backend.onrender.com`
 
-Use `MODEM_DRIVER=mock` until GSM hardware is connected and tested.
+## Default Login
+Use the credentials created during setup. Check `backend/scripts/create_test_users.cjs` for test accounts.
 
-## Frontend Environment
-
-Copy `frontend/.env.example` to `frontend/.env`:
-
-```bash
-VITE_API_BASE_URL=https://your-backend-domain.example
-```
-
-## Build
-
-From the repository root:
-
-```bash
-npm install
-npm run build
-```
-
-This builds both workspaces.
-
-## Start Backend
-
-```bash
-npm run start --workspace backend
-```
-
-In production, run this with a process manager such as systemd, PM2, Docker, or your hosting provider's service runner.
-
-## Serve Frontend
-
-The frontend production bundle is created in `frontend/dist`. Serve it with any static web server, for example Nginx, Caddy, or your hosting provider's static-site service.
-
-For a local production preview:
-
-```bash
-npm run preview --workspace frontend
-```
-
-## Demo Seed Data
-
-After migrations, create demo users/data:
-
-```bash
-npm run seed:demo --workspace backend
-```
-
-Default demo credentials:
-
-- Admin: `admin@acop.demo` / `AdminPass123!`
-- Agents: `agent1@acop.demo`, `agent2@acop.demo`, `agent3@acop.demo` / `AgentPass123!`
-
-## Integration Tests
-
-Integration tests are DB-backed and skipped unless `TEST_DATABASE_URL` is set.
-
-```bash
-set TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/acop_test
-npm run test:integration --workspace backend
-```
-
-Use a disposable database because tests insert data.
-
-## Real Modem Hardware
-
-Local development uses the mock modem driver. To use real GSM hardware:
-
-```bash
-MODEM_DRIVER=serial
-MODEM_SERIAL_PORT=COM3
-```
-
-Use the correct device path for the host, such as `COM3` on Windows or `/dev/ttyUSB0` on Linux. The serial driver sends:
-
-- `AT` for modem test
-- `ATD<number>;` to dial
-- `ATH` to hang up
-- `ATA` to answer
-
-Also ensure each modem row has correct port/device metadata and each agent is assigned a modem in the admin Modems page.
-
-## Version 1 Module Review
-
-Direct comparison against `AMSAF_ACOP_Project_Blueprint_v1.docx` could not be completed in this workspace because the file was not present under the accessible project folders. Based on the phase prompts implemented here:
-
-- Implemented: authentication, dashboards, customer management, campaign management, agent management, assignment, next customer queue, manual dialer/mock modem integration, reports, notifications, audit logs, system settings.
-- Partially implemented: real modem serial control exists as a minimal Node file-handle AT command implementation, but production-grade serial handling should be validated with actual hardware and may need a dedicated serial-port library.
-- Deferred or not fully implemented in code: automated backup execution behind `backup_enabled`, full enforcement of stored password policy during password changes, websocket/live push updates, production migration runner, and any blueprint-only requirements not represented in the phase prompts.
+## Notes
+- Free tier services may spin down after inactivity. First request after sleep takes ~30 seconds.
+- Keep your Supabase database URL secure and never commit it to Git.
+- For production, generate a new JWT_SECRET instead of using the default.
