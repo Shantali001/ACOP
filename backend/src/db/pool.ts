@@ -9,6 +9,7 @@ export const pool = new pg.Pool({
         rejectUnauthorized: false,
       }
     : undefined,
+  family: 4,
 });
 
 pool.on('error', (error) => {
