@@ -182,3 +182,43 @@ authRouter.post(
     }
   },
 );
+
+authRouter.post('/setup/admin', async (req, res, next) => {
+  try {
+    const { email, password, fullName } = req.body as { email?: string; password?: string; fullName?: string };
+
+    if (!email || !password || !fullName) {
+      res.status(400).json({ message: 'email, password, and fullName are required.' });
+      return;
+    }
+
+    const existingAdmin = await pool.query<UserRow>(
+      "select id from users where role = 'ADMIN' limit 1",
+    );
+
+    if (existingAdmin.rows[0]) {
+      res.status(409).json({ message: 'Admin user already exists.' });
+      return;
+    }
+
+    const result = await pool.query<UserRow>(
+      `
+        insert into users (email, full_name, password_hash, role, status)
+        values ($1, $2, crypt($3, gen_salt('bf')), 'ADMIN', 'ACTIVE')
+        returning id, full_name, email, role, status
+      `,
+      [email, fullName, password],
+    );
+
+    res.status(201).json({
+      user: {
+        id: result.rows[0].id,
+        fullName: result.rows[0].full_name,
+        email: result.rows[0].email,
+        role: result.rows[0].role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
