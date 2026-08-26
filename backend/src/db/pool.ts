@@ -9,6 +9,7 @@ export const pool = new pg.Pool({
         rejectUnauthorized: false,
       }
     : undefined,
+  // @ts-ignore - force IPv4 to avoid ENETUNREACH on Render
   family: 4,
 });
 
