@@ -130,17 +130,19 @@ export function ElectionAssignmentsPage() {
                         <td>{pu.fieldAgentName ?? <span className="text-ink-muted">Not set</span>}</td>
                         <td>
                           {editingPhoneId === pu.id ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                               <input
                                 type="text"
                                 value={editingPhone}
                                 onChange={(e) => setEditingPhone(e.target.value)}
-                                className="input"
+                                className="input h-8 text-xs sm:text-sm"
                                 placeholder="Phone number"
                                 autoFocus
                               />
-                              <button onClick={() => handleSavePhone()} className="btn btn-sm btn-primary">Save</button>
-                              <button onClick={() => { setEditingPhoneId(null); setEditingPhone(''); }} className="btn btn-sm btn-secondary">Cancel</button>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSavePhone()} className="btn btn-sm btn-primary flex-1 sm:flex-none">Save</button>
+                                <button onClick={() => { setEditingPhoneId(null); setEditingPhone(''); }} className="btn btn-sm btn-secondary flex-1 sm:flex-none">Cancel</button>
+                              </div>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">

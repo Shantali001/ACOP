@@ -251,29 +251,29 @@ export function AgentsListPage() {
                     </td>
                     <td className="text-right text-ink">{agent.totalCalls}</td>
                     <td className="text-right text-ink">{agent.completedCustomers}</td>
-                    <td>
-                      <div className="flex justify-end gap-2">
-                        <Link to={`/admin/agents/${agent.id}/edit`} className="btn btn-secondary btn-sm gap-1">
-                          <Pencil size={14} />
-                          Edit
-                        </Link>
-                        <button
-                          type="button"
-                          className="btn btn-success btn-sm gap-1"
-                          onClick={() => void handleStatusToggle(agent)}
-                        >
-                          {agent.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm gap-1"
-                          onClick={() => void handleDelete(agent)}
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+                     <td>
+                       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                         <Link to={`/admin/agents/${agent.id}/edit`} className="btn btn-secondary btn-sm gap-1 w-full sm:w-auto">
+                           <Pencil size={14} />
+                           Edit
+                         </Link>
+                         <button
+                           type="button"
+                           className="btn btn-success btn-sm gap-1 w-full sm:w-auto"
+                           onClick={() => void handleStatusToggle(agent)}
+                         >
+                           {agent.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
+                         </button>
+                         <button
+                           type="button"
+                           className="btn btn-danger btn-sm gap-1 w-full sm:w-auto"
+                           onClick={() => void handleDelete(agent)}
+                         >
+                           <Trash2 size={14} />
+                           Delete
+                         </button>
+                       </div>
+                     </td>
                   </tr>
                 ))
               )}

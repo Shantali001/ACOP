@@ -326,26 +326,26 @@ export function CustomersListPage() {
                     <td>
                       <Badge variant="neutral">{customer.state}</Badge>
                     </td>
-                    <td>
-                      <div className="flex justify-end gap-2">
-                        <Link to={`/admin/customers/${customer.id}`} className="btn btn-secondary btn-sm gap-1">
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </Link>
-                        <Link to={`/admin/customers/${customer.id}/edit`} className="btn btn-secondary btn-sm gap-1">
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </Link>
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm gap-1"
-                          onClick={() => void handleDelete(customer)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+                     <td>
+                       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                         <Link to={`/admin/customers/${customer.id}`} className="btn btn-secondary btn-sm gap-1 w-full sm:w-auto">
+                           <Eye className="h-3.5 w-3.5" />
+                           View
+                         </Link>
+                         <Link to={`/admin/customers/${customer.id}/edit`} className="btn btn-secondary btn-sm gap-1 w-full sm:w-auto">
+                           <Pencil className="h-3.5 w-3.5" />
+                           Edit
+                         </Link>
+                         <button
+                           type="button"
+                           className="btn btn-danger btn-sm gap-1 w-full sm:w-auto"
+                           onClick={() => void handleDelete(customer)}
+                         >
+                           <Trash2 className="h-3.5 w-3.5" />
+                           Delete
+                         </button>
+                       </div>
+                     </td>
                   </tr>
                 ))}
               </tbody>

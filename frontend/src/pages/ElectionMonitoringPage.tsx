@@ -197,7 +197,7 @@ export function ElectionMonitoringPage() {
           <h1 className="text-section font-semibold text-ink">Election Monitoring</h1>
           <p className="mt-1 text-body text-ink-secondary">Proactively check in with field agents at assigned polling units.</p>
         </div>
-        <Card className="flex min-w-[200px] flex-col items-end justify-center px-5 py-4">
+        <Card className="flex flex-1 min-w-0 flex-col items-end justify-center px-5 py-4 sm:flex-none sm:min-w-[200px]">
           <p className="text-table text-ink-muted">Call timer</p>
           <p className="mt-2 text-section font-semibold text-ink">{formatSeconds(elapsedSeconds)}</p>
         </Card>

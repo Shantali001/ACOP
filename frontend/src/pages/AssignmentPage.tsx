@@ -130,7 +130,7 @@ export function AssignmentPage() {
       )}
 
       <Card title="New assignment">
-        <form className="grid gap-4 xl:grid-cols-[280px_280px_1fr]" onSubmit={handleSubmit}>
+        <form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[280px_280px_1fr]" onSubmit={handleSubmit}>
           <label className="block">
             <span className="text-body text-ink-secondary">Campaign</span>
             <select value={campaignId} onChange={(event) => setCampaignId(event.target.value)} className="input mt-2" required>

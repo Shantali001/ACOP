@@ -131,23 +131,25 @@ export function ModemsListPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-page font-bold text-ink">Modems</h1>
           <p className="mt-2 text-body text-ink-secondary">Manage GSM modem availability and agent assignment.</p>
         </div>
-        <button type="button" onClick={() => void loadData()} className="btn btn-secondary gap-2">
-          <RefreshCcw className="h-4 w-4" />
-          Refresh
-        </button>
-        <button type="button" onClick={() => void handleDiscover()} className="btn btn-secondary gap-2">
-          <Search className="h-4 w-4" />
-          Discover
-        </button>
-        <button type="button" onClick={() => void handleAddModem()} className="btn btn-secondary gap-2">
-          <Plus className="h-4 w-4" />
-          Add
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void loadData()} className="btn btn-secondary gap-2">
+            <RefreshCcw className="h-4 w-4" />
+            Refresh
+          </button>
+          <button type="button" onClick={() => void handleDiscover()} className="btn btn-secondary gap-2">
+            <Search className="h-4 w-4" />
+            Discover
+          </button>
+          <button type="button" onClick={() => void handleAddModem()} className="btn btn-secondary gap-2">
+            <Plus className="h-4 w-4" />
+            Add
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -209,33 +211,37 @@ export function ModemsListPage() {
                       <td className="text-ink-secondary">{modem.simNumber ?? 'Not set'}</td>
                       <td className="text-ink-secondary">{modem.assignedAgentName ?? 'Unassigned'}</td>
                       <td>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <button type="button" onClick={() => void handleTest(modem)} className="btn btn-secondary btn-sm gap-1">
-                            <TestTube className="h-3.5 w-3.5" />
-                            Test
-                          </button>
-                          <button type="button" onClick={() => void handleToggle(modem)} className="btn btn-secondary btn-sm gap-1">
-                            <Power className="h-3.5 w-3.5" />
-                            {modem.enabled ? 'Disable' : 'Enable'}
-                          </button>
-                          <button type="button" onClick={() => void handleMetadata(modem)} className="btn btn-secondary btn-sm gap-1">
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit
-                          </button>
-                          <select
-                            value={selectedAgentByModem[modem.id] ?? ''}
-                            onChange={(event) => setSelectedAgentByModem((current) => ({ ...current, [modem.id]: event.target.value }))}
-                            className="input h-9 w-auto"
-                          >
-                            <option value="">Agent</option>
-                            {agents.map((agent) => (
-                              <option key={agent.id} value={agent.id}>{agent.fullName}</option>
-                            ))}
-                          </select>
-                          <button type="button" onClick={() => void handleAssign(modem)} className="btn btn-primary btn-sm gap-1">
-                            <UserPlus className="h-3.5 w-3.5" />
-                            Assign
-                          </button>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => void handleTest(modem)} className="btn btn-secondary btn-sm gap-1" title="Test">
+                              <TestTube className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Test</span>
+                            </button>
+                            <button type="button" onClick={() => void handleToggle(modem)} className="btn btn-secondary btn-sm gap-1" title={modem.enabled ? 'Disable' : 'Enable'}>
+                              <Power className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">{modem.enabled ? 'Disable' : 'Enable'}</span>
+                            </button>
+                            <button type="button" onClick={() => void handleMetadata(modem)} className="btn btn-secondary btn-sm gap-1" title="Edit">
+                              <Pencil className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Edit</span>
+                            </button>
+                          </div>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <select
+                              value={selectedAgentByModem[modem.id] ?? ''}
+                              onChange={(event) => setSelectedAgentByModem((current) => ({ ...current, [modem.id]: event.target.value }))}
+                              className="input h-9 w-full sm:w-auto"
+                            >
+                              <option value="">Agent</option>
+                              {agents.map((agent) => (
+                                <option key={agent.id} value={agent.id}>{agent.fullName}</option>
+                              ))}
+                            </select>
+                            <button type="button" onClick={() => void handleAssign(modem)} className="btn btn-primary btn-sm gap-1 w-full sm:w-auto">
+                              <UserPlus className="h-3.5 w-3.5" />
+                              Assign
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>

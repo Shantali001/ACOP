@@ -184,7 +184,7 @@ export function CampaignDetailPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         <StatCard label="Status" value={campaign?.status ?? 'Not set'} />
         <StatCard label="Start" value={campaign?.startDate ?? 'Not set'} />
         <StatCard label="End" value={campaign?.endDate ?? 'Not set'} />
@@ -345,11 +345,11 @@ export function CampaignDetailPage() {
                       <td className="text-ink-secondary">{m.agent_name ?? 'Unassigned'}</td>
                       <td>
                         {m.assignment_id ? (
-                          <div className="flex justify-end gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                             <select
                               value={reassignAgentByAssignment[m.assignment_id] ?? ''}
                               onChange={(event) => setReassignAgentByAssignment((current) => ({ ...current, [m.assignment_id!]: event.target.value }))}
-                              className="input h-9 w-auto"
+                              className="input h-8 w-full sm:w-auto text-xs sm:text-sm"
                             >
                               <option value="">Agent</option>
                               {agents.filter((agent) => agent.id !== m.agent_id).map((agent) => (
@@ -360,7 +360,7 @@ export function CampaignDetailPage() {
                               type="button"
                               disabled={isUpdatingMembers || !reassignAgentByAssignment[m.assignment_id]}
                               onClick={() => void handleReassign(m.assignment_id!)}
-                              className="btn btn-secondary btn-sm gap-1"
+                              className="btn btn-secondary btn-sm gap-1 w-full sm:w-auto"
                             >
                               <UserCheck className="h-3.5 w-3.5" />
                               Reassign

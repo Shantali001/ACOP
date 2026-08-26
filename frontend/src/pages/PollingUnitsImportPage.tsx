@@ -189,17 +189,17 @@ export function PollingUnitsImportPage() {
                     <tr key={pu.id}>
                       {editingId === pu.id ? (
                         <>
-                          <td><input type="text" value={editForm.puCode} onChange={(e) => setEditForm({ ...editForm, puCode: e.target.value })} className="input" /></td>
-                          <td><input type="text" value={editForm.puName} onChange={(e) => setEditForm({ ...editForm, puName: e.target.value })} className="input" /></td>
-                          <td><input type="text" value={editForm.ward} onChange={(e) => setEditForm({ ...editForm, ward: e.target.value })} className="input" /></td>
-                          <td><input type="text" value={editForm.lga} onChange={(e) => setEditForm({ ...editForm, lga: e.target.value })} className="input" /></td>
-                          <td><input type="text" value={editForm.state} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} className="input" /></td>
-                          <td><input type="number" value={editForm.registeredVoters} onChange={(e) => setEditForm({ ...editForm, registeredVoters: Number(e.target.value) })} className="input" /></td>
-                          <td><input type="text" value={editForm.fieldAgentName} onChange={(e) => setEditForm({ ...editForm, fieldAgentName: e.target.value })} className="input" /></td>
+                          <td><input type="text" value={editForm.puCode} onChange={(e) => setEditForm({ ...editForm, puCode: e.target.value })} className="input h-8 text-xs sm:text-sm" /></td>
+                          <td><input type="text" value={editForm.puName} onChange={(e) => setEditForm({ ...editForm, puName: e.target.value })} className="input h-8 text-xs sm:text-sm" /></td>
+                          <td><input type="text" value={editForm.ward} onChange={(e) => setEditForm({ ...editForm, ward: e.target.value })} className="input h-8 text-xs sm:text-sm" /></td>
+                          <td><input type="text" value={editForm.lga} onChange={(e) => setEditForm({ ...editForm, lga: e.target.value })} className="input h-8 text-xs sm:text-sm" /></td>
+                          <td><input type="text" value={editForm.state} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} className="input h-8 text-xs sm:text-sm" /></td>
+                          <td><input type="number" value={editForm.registeredVoters} onChange={(e) => setEditForm({ ...editForm, registeredVoters: Number(e.target.value) })} className="input h-8 text-xs sm:text-sm" /></td>
+                          <td><input type="text" value={editForm.fieldAgentName} onChange={(e) => setEditForm({ ...editForm, fieldAgentName: e.target.value })} className="input h-8 text-xs sm:text-sm" /></td>
                           <td>
-                            <div className="flex gap-2">
-                              <button onClick={() => void handleUpdate()} className="btn btn-sm btn-primary">Save</button>
-                              <button onClick={() => { setEditingId(null); setEditForm(emptyForm); }} className="btn btn-sm btn-secondary">Cancel</button>
+                            <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+                              <button onClick={() => void handleUpdate()} className="btn btn-sm btn-primary w-full sm:w-auto">Save</button>
+                              <button onClick={() => { setEditingId(null); setEditForm(emptyForm); }} className="btn btn-sm btn-secondary w-full sm:w-auto">Cancel</button>
                             </div>
                           </td>
                         </>

@@ -205,11 +205,11 @@ export function NextCustomerPage() {
           </h1>
           <p className="mt-1 text-body text-ink-secondary">{customer.campaignName ?? 'Campaign queue'}</p>
         </div>
-        <Card className="flex min-w-[200px] flex-col items-end justify-center px-5 py-4">
+        <Card className="flex flex-1 min-w-0 flex-col items-end justify-center px-5 py-4 sm:flex-none sm:min-w-[200px]">
           <p className="text-table text-ink-muted">Call timer</p>
           <p className="mt-2 text-section font-semibold text-ink">{formatSeconds(elapsedSeconds)}</p>
         </Card>
-        <Card className="flex min-w-[220px] flex-col justify-center px-5 py-4">
+        <Card className="flex flex-1 min-w-0 flex-col justify-center px-5 py-4 sm:flex-none sm:min-w-[220px]">
           <div className="flex items-center justify-between gap-2">
             <p className="text-table text-ink-muted">Modem</p>
             <button

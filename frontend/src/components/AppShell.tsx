@@ -16,6 +16,8 @@ import {
   Search,
   LogOut,
   Globe,
+  Menu,
+  X,
 } from 'lucide-react';
 
 import { useAuth } from '../auth/useAuth';
@@ -51,6 +53,7 @@ export function AppShell() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [shellTheme, setShellTheme] = useState('light');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const dashboardPath = user?.role === 'AGENT' ? '/agent/dashboard' : '/admin/dashboard';
   const navItems = [
     { label: 'Dashboard', to: dashboardPath },
@@ -124,12 +127,22 @@ export function AppShell() {
   return (
     <div className={shellClass}>
       <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-border bg-surface/80 backdrop-blur-xl">
-        <div className="flex h-full items-center justify-between px-6">
-          <Link to={dashboardPath} className="flex items-center">
-            <Logo />
-          </Link>
+        <div className="flex h-full items-center justify-between px-4 lg:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((current) => !current)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-muted transition hover:bg-hover hover:text-ink lg:hidden"
+              aria-label="Toggle navigation"
+            >
+              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+            <Link to={dashboardPath} className="flex items-center">
+              <Logo />
+            </Link>
+          </div>
 
-          <div className="mx-8 hidden max-w-md flex-1 lg:block">
+          <div className="mx-4 hidden max-w-md flex-1 lg:block">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
               <input
@@ -142,7 +155,7 @@ export function AppShell() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <div className="relative">
               <button
                 type="button"
@@ -157,7 +170,7 @@ export function AppShell() {
                 ) : null}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border border-border bg-surface shadow-elevated">
+                <div className="absolute right-0 mt-2 w-72 sm:w-80 overflow-hidden rounded-xl border border-border bg-surface shadow-elevated">
                   <div className="flex items-center justify-between border-b border-border px-4 py-3">
                     <span className="text-sm font-semibold text-ink">Notifications</span>
                     <button
@@ -210,7 +223,18 @@ export function AppShell() {
         </div>
       </header>
 
-      <aside className="fixed bottom-0 left-0 top-16 w-64 border-r border-border bg-surface px-3 py-4">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed bottom-0 left-0 top-16 z-40 w-64 border-r border-border bg-surface px-3 py-4 transition-transform duration-200 lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <nav className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = iconMap[item.label as keyof typeof iconMap];
@@ -218,6 +242,7 @@ export function AppShell() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
                   `flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition ${
                     isActive
@@ -234,8 +259,8 @@ export function AppShell() {
         </nav>
       </aside>
 
-      <main className="min-h-screen pl-64 pt-16">
-        <div className="px-6 py-8 lg:px-8">
+      <main className="min-h-screen pl-0 pt-16 lg:pl-64">
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </div>
       </main>
