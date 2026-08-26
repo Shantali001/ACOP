@@ -44,9 +44,10 @@ authRouter.post('/login', async (req, res, next) => {
       return;
     }
 
-    await pool.query('update users set last_login = now(), updated_at = now() where id = $1', [
-      user.id,
-    ]);
+    await pool.query(
+      'update users set last_login = now(), updated_at = now() where id = $1::uuid',
+      [user.id],
+    );
 
     await writeAuditLog({
       userId: user.id,
@@ -106,7 +107,7 @@ authRouter.post('/change-password', requireAuth, async (req, res, next) => {
       `
         select id
         from users
-        where id = $1
+        where id = $1::uuid
           and password_hash = crypt($2, password_hash)
         limit 1
       `,
@@ -123,7 +124,7 @@ authRouter.post('/change-password', requireAuth, async (req, res, next) => {
         update users
         set password_hash = crypt($2, gen_salt('bf')),
             updated_at = now()
-        where id = $1
+        where id = $1::uuid
       `,
       [req.user!.id, newPassword],
     );
@@ -200,12 +201,12 @@ authRouter.post('/setup/admin', async (req, res, next) => {
       const resetResult = await pool.query<UserRow>(
         `
           update users
-          set password_hash = crypt($3, gen_salt('bf')),
+          set password_hash = crypt($1, gen_salt('bf')),
               updated_at = now()
           where role = 'ADMIN'
           returning id, full_name, email, role, status
         `,
-        [email, fullName, password],
+        [password],
       );
       res.json({
         user: {
