@@ -197,7 +197,24 @@ authRouter.post('/setup/admin', async (req, res, next) => {
     );
 
     if (existingAdmin.rows[0]) {
-      res.status(409).json({ message: 'Admin user already exists.' });
+      const resetResult = await pool.query<UserRow>(
+        `
+          update users
+          set password_hash = crypt($3, gen_salt('bf')),
+              updated_at = now()
+          where role = 'ADMIN'
+          returning id, full_name, email, role, status
+        `,
+        [email, fullName, password],
+      );
+      res.json({
+        user: {
+          id: resetResult.rows[0].id,
+          fullName: resetResult.rows[0].full_name,
+          email: resetResult.rows[0].email,
+          role: resetResult.rows[0].role,
+        },
+      });
       return;
     }
 
