@@ -1,5 +1,3 @@
-import path from 'path';
-
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -72,12 +70,6 @@ app.get('/health/db', async (_req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
-
-const frontendDistPath = path.resolve(process.cwd(), '..', 'frontend', 'dist');
-app.use(express.static(frontendDistPath));
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 app.use(
