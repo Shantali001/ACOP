@@ -18,6 +18,7 @@ import {
   Globe,
   Menu,
   X,
+  GripVertical,
 } from 'lucide-react';
 
 import { useAuth } from '../auth/useAuth';
@@ -45,6 +46,37 @@ const iconMap = {
   'Parties / Candidates': Users,
 };
 
+const NAV_ORDER_KEY = 'sidebar-nav-order';
+
+type NavItem = { label: string; to: string };
+
+function readPersistedOrder(defaults: NavItem[]): NavItem[] {
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const raw = window.sessionStorage.getItem(NAV_ORDER_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as NavItem[];
+    if (!Array.isArray(parsed)) return defaults;
+    const byTo = new Map(defaults.map((item) => [item.to, item]));
+    const knownTo = new Set(defaults.map((item) => item.to));
+    const ordered: NavItem[] = [];
+    parsed.forEach((item) => {
+      if (item && typeof item.to === 'string' && knownTo.has(item.to)) {
+        const match = byTo.get(item.to);
+        if (match) ordered.push(match);
+      }
+    });
+    defaults.forEach((item) => {
+      if (!ordered.find((existing) => existing.to === item.to)) {
+        ordered.push(item);
+      }
+    });
+    return ordered;
+  } catch {
+    return defaults;
+  }
+}
+
 export function AppShell() {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
@@ -54,8 +86,10 @@ export function AppShell() {
   const [shellTheme, setShellTheme] = useState('light');
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dashboardPath = user?.role === 'AGENT' ? '/agent/dashboard' : '/admin/dashboard';
-  const navItems = [
+  const defaultNavItems: NavItem[] = [
     { label: 'Dashboard', to: dashboardPath },
     ...(user?.role === 'ADMIN'
       ? [
@@ -81,6 +115,71 @@ export function AppShell() {
       : []),
     { label: 'Change Password', to: '/change-password' },
   ];
+  const [navItems, setNavItems] = useState<NavItem[]>(() => readPersistedOrder(defaultNavItems));
+
+  useEffect(() => {
+    setNavItems((current) => {
+      const defaults = defaultNavItems;
+      const known = new Set(defaults.map((item) => item.to));
+      const currentKnown = current.filter((item) => known.has(item.to));
+      const defaultsToAdd = defaults.filter((item) => !currentKnown.find((existing) => existing.to === item.to));
+      const isSameAsDefault = current.length === defaults.length && defaults.every((d, i) => current[i]?.to === d.to);
+      if (isSameAsDefault) return defaults;
+      if (defaultsToAdd.length === 0 && current.length === currentKnown.length) return current;
+      return [...currentKnown, ...defaultsToAdd];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(NAV_ORDER_KEY, JSON.stringify(navItems));
+    } catch {
+      // ignore
+    }
+  }, [navItems]);
+
+  function handleDragStart(event: React.DragEvent<HTMLDivElement>, index: number) {
+    setDraggedIndex(index);
+    event.dataTransfer.effectAllowed = 'move';
+    try {
+      event.dataTransfer.setData('text/plain', String(index));
+    } catch {
+      // some browsers throw if called outside dragstart in dev
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>, index: number) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (index !== dragOverIndex) {
+      setDragOverIndex(index);
+    }
+  }
+
+  function handleDragLeave() {
+    // no-op; dragOverIndex is set on dragOver to track the current target
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLDivElement>, dropIndex: number) {
+    event.preventDefault();
+    const fromIndex = draggedIndex;
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    if (fromIndex === null || fromIndex === dropIndex) return;
+    setNavItems((current) => {
+      const next = current.slice();
+      const [moved] = next.splice(fromIndex, 1);
+      if (!moved) return current;
+      next.splice(dropIndex, 0, moved);
+      return next;
+    });
+  }
+
+  function handleDragEnd() {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -235,25 +334,49 @@ export function AppShell() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
+        <div className="mb-2 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+          <span>Navigation</span>
+          <span className="hidden sm:inline">Drag to reorder</span>
+        </div>
         <nav className="space-y-0.5">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const Icon = iconMap[item.label as keyof typeof iconMap];
+            const isDragging = draggedIndex === index;
+            const isDropTarget = dragOverIndex === index && draggedIndex !== null && draggedIndex !== index;
             return (
-              <NavLink
+              <div
                 key={item.to}
-                to={item.to}
-                onClick={() => setSidebarOpen(false)}
-                className={({ isActive }) =>
-                  `flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition ${
-                    isActive
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-ink-muted hover:bg-hover hover:text-ink'
-                  }`
-                }
+                draggable
+                onDragStart={(event) => handleDragStart(event, index)}
+                onDragOver={(event) => handleDragOver(event, index)}
+                onDragLeave={handleDragLeave}
+                onDrop={(event) => handleDrop(event, index)}
+                onDragEnd={handleDragEnd}
+                className={`group relative flex items-center rounded-lg transition ${
+                  isDragging ? 'opacity-50' : ''
+                } ${isDropTarget ? 'ring-2 ring-primary' : ''}`}
               >
-                {Icon && <Icon className="h-4 w-4" />}
-                <span>{item.label}</span>
-              </NavLink>
+                <span
+                  className="flex h-10 w-5 cursor-grab items-center justify-center text-ink-muted opacity-0 transition group-hover:opacity-100 active:cursor-grabbing"
+                  aria-hidden="true"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                </span>
+                <NavLink
+                  to={item.to}
+                  onClick={() => setSidebarOpen(false)}
+                  className={({ isActive }) =>
+                    `flex h-10 flex-1 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition ${
+                      isActive
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-ink-muted hover:bg-hover hover:text-ink'
+                    }`
+                  }
+                >
+                  {Icon && <Icon className="h-4 w-4" />}
+                  <span className="truncate">{item.label}</span>
+                </NavLink>
+              </div>
             );
           })}
         </nav>
