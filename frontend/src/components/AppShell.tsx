@@ -20,6 +20,24 @@ import {
   X,
   GripVertical,
 } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 import { useAuth } from '../auth/useAuth';
 import { listNotifications, markAllNotificationsRead } from '../notifications/api';
@@ -46,35 +64,111 @@ const iconMap = {
   'Parties / Candidates': Users,
 };
 
-const NAV_ORDER_KEY = 'sidebar-nav-order';
+const NAV_ORDER_KEY = 'acop_sidebar_order';
 
 type NavItem = { label: string; to: string };
 
-function readPersistedOrder(defaults: NavItem[]): NavItem[] {
-  if (typeof window === 'undefined') return defaults;
+const DEFAULT_ORDER: NavItem[] = [
+  { label: 'Dashboard', to: '/admin/dashboard' },
+  { label: 'Customers', to: '/admin/customers' },
+  { label: 'Campaigns', to: '/admin/campaigns' },
+  { label: 'Agents', to: '/admin/agents' },
+  { label: 'Assignments', to: '/admin/assignments' },
+  { label: 'Modems', to: '/admin/modems' },
+  { label: 'Supervisor', to: '/admin/supervisor' },
+  { label: 'Reports', to: '/admin/reports' },
+  { label: 'Audit Logs', to: '/admin/audit-logs' },
+  { label: 'Settings', to: '/admin/settings' },
+  { label: 'Situation Room', to: '/admin/election' },
+  { label: 'Polling Units', to: '/admin/election/polling-units/import' },
+  { label: 'Election Assignments', to: '/admin/election/assignments' },
+  { label: 'Election Targets', to: '/admin/election/targets' },
+  { label: 'Parties / Candidates', to: '/admin/election/parties' },
+  { label: 'Change Password', to: '/change-password' },
+];
+
+function readPersistedOrder(): NavItem[] {
+  if (typeof window === 'undefined') return DEFAULT_ORDER;
   try {
-    const raw = window.sessionStorage.getItem(NAV_ORDER_KEY);
-    if (!raw) return defaults;
+    const raw = window.localStorage.getItem(NAV_ORDER_KEY);
+    if (!raw) return DEFAULT_ORDER;
     const parsed = JSON.parse(raw) as NavItem[];
-    if (!Array.isArray(parsed)) return defaults;
-    const byTo = new Map(defaults.map((item) => [item.to, item]));
-    const knownTo = new Set(defaults.map((item) => item.to));
+    if (!Array.isArray(parsed)) return DEFAULT_ORDER;
+    const known = new Set(DEFAULT_ORDER.map((item) => item.to));
     const ordered: NavItem[] = [];
     parsed.forEach((item) => {
-      if (item && typeof item.to === 'string' && knownTo.has(item.to)) {
-        const match = byTo.get(item.to);
+      if (item && typeof item.to === 'string' && known.has(item.to)) {
+        const match = DEFAULT_ORDER.find((d) => d.to === item.to);
         if (match) ordered.push(match);
       }
     });
-    defaults.forEach((item) => {
+    DEFAULT_ORDER.forEach((item) => {
       if (!ordered.find((existing) => existing.to === item.to)) {
         ordered.push(item);
       }
     });
     return ordered;
   } catch {
-    return defaults;
+    return DEFAULT_ORDER;
   }
+}
+
+function SortableNavItem({ item, isReorderMode, isActive }: { item: NavItem; isReorderMode: boolean; isActive: boolean }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.to });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition ?? undefined,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative' as const,
+    boxShadow: isDragging ? '0 10px 25px -5px rgb(0 0 0 / 0.15)' : undefined,
+  };
+
+  const Icon = iconMap[item.label as keyof typeof iconMap];
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center rounded-lg transition ${isDragging ? 'is-dragging' : ''}`}
+    >
+      {isReorderMode ? (
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          className="flex h-10 w-5 shrink-0 cursor-grab items-center justify-center text-ink-muted active:cursor-grabbing"
+          aria-label={`Drag to reorder ${item.label}`}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+      <NavLink
+        to={item.to}
+        onClick={() => {}}
+        className={({ isActive: active }) =>
+          `flex h-10 flex-1 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition ${
+            active || isActive
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-ink-muted hover:bg-hover hover:text-ink'
+          }`
+        }
+      >
+        {Icon && <Icon className="h-4 w-4" />}
+        <span className="truncate">{item.label}</span>
+      </NavLink>
+    </div>
+  );
 }
 
 export function AppShell() {
@@ -86,40 +180,19 @@ export function AppShell() {
   const [shellTheme, setShellTheme] = useState('light');
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isReorderMode, setIsReorderMode] = useState(false);
   const dashboardPath = user?.role === 'AGENT' ? '/agent/dashboard' : '/admin/dashboard';
-  const defaultNavItems: NavItem[] = [
-    { label: 'Dashboard', to: dashboardPath },
-    ...(user?.role === 'ADMIN'
-      ? [
-          { label: 'Customers', to: '/admin/customers' },
-          { label: 'Campaigns', to: '/admin/campaigns' },
-          { label: 'Agents', to: '/admin/agents' },
-          { label: 'Assignments', to: '/admin/assignments' },
-          { label: 'Modems', to: '/admin/modems' },
-          { label: 'Supervisor', to: '/admin/supervisor' },
-          { label: 'Reports', to: '/admin/reports' },
-          { label: 'Audit Logs', to: '/admin/audit-logs' },
-          { label: 'Settings', to: '/admin/settings' },
-        ]
-      : []),
-    ...(user?.role === 'ADMIN' || user?.role === 'SUPERVISOR'
-      ? [
-          { label: 'Situation Room', to: '/admin/election' },
-          { label: 'Polling Units', to: '/admin/election/polling-units/import' },
-          { label: 'Election Assignments', to: '/admin/election/assignments' },
-          { label: 'Election Targets', to: '/admin/election/targets' },
-          { label: 'Parties / Candidates', to: '/admin/election/parties' },
-        ]
-      : []),
-    { label: 'Change Password', to: '/change-password' },
-  ];
-  const [navItems, setNavItems] = useState<NavItem[]>(() => readPersistedOrder(defaultNavItems));
+  const [navItems, setNavItems] = useState<NavItem[]>(readPersistedOrder);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+  );
 
   useEffect(() => {
     setNavItems((current) => {
-      const defaults = defaultNavItems;
+      const defaults = DEFAULT_ORDER;
       const known = new Set(defaults.map((item) => item.to));
       const currentKnown = current.filter((item) => known.has(item.to));
       const defaultsToAdd = defaults.filter((item) => !currentKnown.find((existing) => existing.to === item.to));
@@ -128,57 +201,39 @@ export function AppShell() {
       if (defaultsToAdd.length === 0 && current.length === currentKnown.length) return current;
       return [...currentKnown, ...defaultsToAdd];
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role]);
 
   useEffect(() => {
     try {
-      window.sessionStorage.setItem(NAV_ORDER_KEY, JSON.stringify(navItems));
+      window.localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(navItems));
     } catch {
       // ignore
     }
   }, [navItems]);
 
-  function handleDragStart(event: React.DragEvent<HTMLDivElement>, index: number) {
-    setDraggedIndex(index);
-    event.dataTransfer.effectAllowed = 'move';
-    try {
-      event.dataTransfer.setData('text/plain', String(index));
-    } catch {
-      // some browsers throw if called outside dragstart in dev
-    }
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
   }
 
-  function handleDragOver(event: React.DragEvent<HTMLDivElement>, index: number) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    if (index !== dragOverIndex) {
-      setDragOverIndex(index);
-    }
-  }
-
-  function handleDragLeave() {
-    // no-op; dragOverIndex is set on dragOver to track the current target
-  }
-
-  function handleDrop(event: React.DragEvent<HTMLDivElement>, dropIndex: number) {
-    event.preventDefault();
-    const fromIndex = draggedIndex;
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    if (fromIndex === null || fromIndex === dropIndex) return;
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
     setNavItems((current) => {
-      const next = current.slice();
-      const [moved] = next.splice(fromIndex, 1);
-      if (!moved) return current;
-      next.splice(dropIndex, 0, moved);
-      return next;
+      const fromIndex = current.findIndex((item) => item.to === active.id);
+      const toIndex = current.findIndex((item) => item.to === over.id);
+      if (fromIndex === -1 || toIndex === -1) return current;
+      return arrayMove(current, fromIndex, toIndex);
     });
   }
 
-  function handleDragEnd() {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
+  function resetOrder() {
+    setNavItems(DEFAULT_ORDER);
+    try {
+      window.localStorage.removeItem(NAV_ORDER_KEY);
+    } catch {
+      // ignore
+    }
   }
 
   useEffect(() => {
@@ -222,6 +277,8 @@ export function AppShell() {
       : shellTheme === 'gold'
         ? 'min-h-screen bg-amber-50 text-ink'
         : 'min-h-screen bg-background text-ink';
+
+  const currentPath = window.location.pathname;
 
   return (
     <div className={shellClass}>
@@ -334,52 +391,65 @@ export function AppShell() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="mb-2 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-          <span>Navigation</span>
-          <span className="hidden sm:inline">Drag to reorder</span>
-        </div>
-        <nav className="space-y-0.5">
-          {navItems.map((item, index) => {
-            const Icon = iconMap[item.label as keyof typeof iconMap];
-            const isDragging = draggedIndex === index;
-            const isDropTarget = dragOverIndex === index && draggedIndex !== null && draggedIndex !== index;
-            return (
-              <div
-                key={item.to}
-                draggable
-                onDragStart={(event) => handleDragStart(event, index)}
-                onDragOver={(event) => handleDragOver(event, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(event) => handleDrop(event, index)}
-                onDragEnd={handleDragEnd}
-                className={`group relative flex items-center rounded-lg transition ${
-                  isDragging ? 'opacity-50' : ''
-                } ${isDropTarget ? 'ring-2 ring-primary' : ''}`}
+        <div className="mb-2 flex items-center justify-between px-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+            {isReorderMode ? 'Drag to reorder' : 'Navigation'}
+          </span>
+          <div className="flex items-center gap-1">
+            {isReorderMode ? (
+              <button
+                type="button"
+                onClick={resetOrder}
+                className="text-[10px] font-medium text-primary hover:text-primary-hover"
               >
-                <span
-                  className="flex h-10 w-5 cursor-grab items-center justify-center text-ink-muted opacity-0 transition group-hover:opacity-100 active:cursor-grabbing"
-                  aria-hidden="true"
-                >
-                  <GripVertical className="h-3.5 w-3.5" />
-                </span>
-                <NavLink
-                  to={item.to}
-                  onClick={() => setSidebarOpen(false)}
-                  className={({ isActive }) =>
-                    `flex h-10 flex-1 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition ${
-                      isActive
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-ink-muted hover:bg-hover hover:text-ink'
-                    }`
-                  }
-                >
-                  {Icon && <Icon className="h-4 w-4" />}
-                  <span className="truncate">{item.label}</span>
-                </NavLink>
+                Reset
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setIsReorderMode((current) => !current)}
+              className="text-[10px] font-medium text-primary hover:text-primary-hover"
+            >
+              {isReorderMode ? 'Done' : 'Reorder'}
+            </button>
+          </div>
+        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={navItems.map((item) => item.to)} strategy={verticalListSortingStrategy}>
+            <nav className="space-y-0.5">
+              {navItems.map((item) => (
+                <SortableNavItem
+                  key={item.to}
+                  item={item}
+                  isReorderMode={isReorderMode}
+                  isActive={item.to === currentPath}
+                />
+              ))}
+            </nav>
+          </SortableContext>
+          <DragOverlay>
+            {activeId ? (
+              <div className="flex h-10 items-center gap-3 rounded-lg bg-surface px-3 shadow-elevated">
+                <GripVertical className="h-3.5 w-3.5 text-ink-muted" />
+                {(() => {
+                  const item = navItems.find((i) => i.to === activeId);
+                  const Icon = item ? iconMap[item.label as keyof typeof iconMap] : null;
+                  return (
+                    <>
+                      {Icon && <Icon className="h-4 w-4" />}
+                      <span className="text-sm font-medium text-ink">{item?.label}</span>
+                    </>
+                  );
+                })()}
               </div>
-            );
-          })}
-        </nav>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       </aside>
 
       <main className="min-h-screen pl-0 pt-16 lg:pl-64">
