@@ -53,3 +53,17 @@ export async function getCampaignDashboard(token: string, filters: DashboardFilt
   return (await response.json()) as CampaignDashboardData;
 }
 
+export async function getLgasByState(token: string, state: string) {
+  const url = `${apiBaseUrl}/admin/campaign-dashboard/lgas?state=${encodeURIComponent(state)}`;
+  const response = await fetch(url, { headers: authHeaders(token) });
+  if (!response.ok) throw new Error(await parseError(response));
+  return (await response.json()) as string[];
+}
+
+export async function getWardsByLga(token: string, lga: string) {
+  const url = `${apiBaseUrl}/admin/campaign-dashboard/wards?lga=${encodeURIComponent(lga)}`;
+  const response = await fetch(url, { headers: authHeaders(token) });
+  if (!response.ok) throw new Error(await parseError(response));
+  return (await response.json()) as string[];
+}
+

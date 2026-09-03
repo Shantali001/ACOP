@@ -57,7 +57,7 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
     const hasCustomerFilter = customerFilters.conditions.length > 0;
 
     function buildCountQuery(outcome: string) {
-      const conditions = ['outcome = $1', ...callFilters.conditions, ...customerFilters.conditions];
+      const conditions = [`outcome = $1::call_outcome_enum`, ...callFilters.conditions, ...customerFilters.conditions];
       const values = [outcome, ...callFilters.values, ...customerFilters.values];
       const fromClause = hasCustomerFilter ? 'from calls join customers c on c.id = calls.customer_id' : 'from calls';
       return countQuery(`select count(*) as count ${fromClause} where ${conditions.join(' and ')}`, values);
@@ -109,7 +109,7 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
       let paramIndex = 1;
 
       if (outcomeFilter) {
-        conditions.push(`outcome = $${paramIndex++}`);
+        conditions.push(`outcome = $${paramIndex++}::call_outcome_enum`);
         values.push(outcomeFilter);
       }
 
@@ -429,4 +429,47 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
     next(error);
   }
 });
+
+campaignDashboardRouter.get('/lgas', async (req, res, next) => {
+  try {
+    const state = (req.query.state as string | undefined)?.trim();
+    if (!state) {
+      return res.json([]);
+    }
+    const result = await pool.query<{ lga: string }>(
+      `select distinct c.lga
+       from customers c
+       where c.state = $1
+         and c.lga is not null
+         and c.lga <> ''
+       order by c.lga`,
+      [state],
+    );
+    res.json(result.rows.map((r) => r.lga));
+  } catch (error) {
+    next(error);
+  }
+});
+
+campaignDashboardRouter.get('/wards', async (req, res, next) => {
+  try {
+    const lga = (req.query.lga as string | undefined)?.trim();
+    if (!lga) {
+      return res.json([]);
+    }
+    const result = await pool.query<{ ward: string }>(
+      `select distinct c.ward
+       from customers c
+       where c.lga = $1
+         and c.ward is not null
+         and c.ward <> ''
+       order by c.ward`,
+      [lga],
+    );
+    res.json(result.rows.map((r) => r.ward));
+  } catch (error) {
+    next(error);
+  }
+});
+
 

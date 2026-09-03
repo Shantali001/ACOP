@@ -4,12 +4,16 @@ import type { DashboardFilters, FilterOptions } from '../types';
 type Props = {
   filters: DashboardFilters;
   filterOptions: FilterOptions;
+  lgas: string[];
+  wards: string[];
+  isLoadingLgas: boolean;
+  isLoadingWards: boolean;
   onFilterChange: (filters: Partial<DashboardFilters>) => void;
   onRefresh: () => void;
   isLoading: boolean;
 };
 
-export function FilterBar({ filters, filterOptions, onFilterChange, onRefresh, isLoading }: Props) {
+export function FilterBar({ filters, filterOptions, lgas, wards, isLoadingLgas, isLoadingWards, onFilterChange, onRefresh, isLoading }: Props) {
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined && v !== '');
 
   const clearFilters = () => {
@@ -70,10 +74,11 @@ export function FilterBar({ filters, filterOptions, onFilterChange, onRefresh, i
         <select
           value={filters.lga ?? ''}
           onChange={(e) => onFilterChange({ lga: e.target.value || undefined })}
-          className="h-9 rounded-lg border border-border bg-hover px-3 text-sm text-ink outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+          disabled={!filters.state || isLoadingLgas}
+          className="h-9 rounded-lg border border-border bg-hover px-3 text-sm text-ink outline-none transition focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60"
         >
-          <option value="">All LGAs</option>
-          {filterOptions.lgas.map((l) => (
+          <option value="">{isLoadingLgas ? 'Loading...' : 'All LGAs'}</option>
+          {lgas.map((l) => (
             <option key={l} value={l}>{l}</option>
           ))}
         </select>
@@ -85,10 +90,11 @@ export function FilterBar({ filters, filterOptions, onFilterChange, onRefresh, i
         <select
           value={filters.ward ?? ''}
           onChange={(e) => onFilterChange({ ward: e.target.value || undefined })}
-          className="h-9 rounded-lg border border-border bg-hover px-3 text-sm text-ink outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+          disabled={!filters.lga || isLoadingWards}
+          className="h-9 rounded-lg border border-border bg-hover px-3 text-sm text-ink outline-none transition focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60"
         >
-          <option value="">All Wards</option>
-          {filterOptions.wards.map((w) => (
+          <option value="">{isLoadingWards ? 'Loading...' : 'All Wards'}</option>
+          {wards.map((w) => (
             <option key={w} value={w}>{w}</option>
           ))}
         </select>

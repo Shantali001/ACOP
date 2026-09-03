@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test:integration": "node --test tests/*.test.mjs",
     "seed:demo": "node scripts/seed_demo.mjs",
+    "seed:geo": "node scripts/seed_geo_reference.mjs",
+    "dedupe:wards": "node scripts/deduplicate_wards.mjs",
     "create:real:users": "node scripts/create_real_users.mjs"
   },
   "dependencies": {
