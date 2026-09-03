@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -181,6 +181,11 @@ export function AppShell() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [scrollMetrics, setScrollMetrics] = useState({ isScrollable: false, thumbHeight: 0, thumbTop: 0 });
+  const isDraggingThumb = useRef(false);
+  const dragStartY = useRef(0);
+  const dragStartScrollTop = useRef(0);
   const dashboardPath = user?.role === 'AGENT' ? '/agent/dashboard' : '/admin/dashboard';
   const [navItems, setNavItems] = useState<NavItem[]>(readPersistedOrder);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -236,6 +241,71 @@ export function AppShell() {
     }
   }
 
+  function updateScrollMetrics() {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const { scrollHeight, clientHeight, scrollTop } = el;
+    if (scrollHeight <= clientHeight) {
+      setScrollMetrics({ isScrollable: false, thumbHeight: 0, thumbTop: 0 });
+      return;
+    }
+    const thumbHeight = Math.max((clientHeight / scrollHeight) * clientHeight, 20);
+    const maxThumbTop = clientHeight - thumbHeight;
+    const thumbTop = maxThumbTop > 0 ? (scrollTop / (scrollHeight - clientHeight)) * maxThumbTop : 0;
+    setScrollMetrics({ isScrollable: true, thumbHeight, thumbTop });
+  }
+
+  function handleThumbPointerDown(clientY: number) {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    isDraggingThumb.current = true;
+    dragStartY.current = clientY;
+    dragStartScrollTop.current = el.scrollTop;
+    document.addEventListener('mousemove', handleThumbPointerMove);
+    document.addEventListener('mouseup', handleThumbPointerUp);
+    document.addEventListener('touchmove', handleThumbPointerMove, { passive: false });
+    document.addEventListener('touchend', handleThumbPointerUp);
+    document.addEventListener('touchcancel', handleThumbPointerUp);
+  }
+
+  function handleThumbPointerMove(event: MouseEvent | TouchEvent) {
+    if (!isDraggingThumb.current) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY;
+    const deltaY = clientY - dragStartY.current;
+    const trackHeight = el.clientHeight;
+    const scrollHeight = el.scrollHeight;
+    const thumbHeight = Math.max((trackHeight / scrollHeight) * trackHeight, 20);
+    const scrollRange = scrollHeight - trackHeight;
+    const thumbRange = trackHeight - thumbHeight;
+    if (scrollRange <= 0 || thumbRange <= 0) return;
+    const scrollDelta = (deltaY / thumbRange) * scrollRange;
+    el.scrollTop = Math.max(0, Math.min(scrollRange, dragStartScrollTop.current + scrollDelta));
+  }
+
+  function handleThumbPointerUp() {
+    isDraggingThumb.current = false;
+    document.removeEventListener('mousemove', handleThumbPointerMove);
+    document.removeEventListener('mouseup', handleThumbPointerUp);
+    document.removeEventListener('touchmove', handleThumbPointerMove);
+    document.removeEventListener('touchend', handleThumbPointerUp);
+    document.removeEventListener('touchcancel', handleThumbPointerUp);
+  }
+
+  function handleTrackClick(event: React.MouseEvent<HTMLDivElement>) {
+    const el = scrollContainerRef.current;
+    if (!el || event.target !== event.currentTarget) return;
+    const trackRect = event.currentTarget.getBoundingClientRect();
+    const clickY = event.clientY - trackRect.top;
+    const trackHeight = trackRect.height;
+    const scrollHeight = el.scrollHeight;
+    const thumbHeight = Math.max((el.clientHeight / scrollHeight) * trackHeight, 20);
+    const scrollRange = scrollHeight - el.clientHeight;
+    const targetScrollTop = (clickY / trackHeight) * scrollHeight - thumbHeight / 2;
+    el.scrollTop = Math.max(0, Math.min(scrollRange, targetScrollTop));
+  }
+
   useEffect(() => {
     if (!token) return;
 
@@ -270,6 +340,24 @@ export function AppShell() {
     await logout();
     navigate('/login', { replace: true });
   }
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    updateScrollMetrics();
+    el.addEventListener('scroll', updateScrollMetrics, { passive: true });
+    window.addEventListener('resize', updateScrollMetrics);
+    return () => {
+      el.removeEventListener('scroll', updateScrollMetrics);
+      window.removeEventListener('resize', updateScrollMetrics);
+    };
+  }, [navItems.length]);
+
+  useEffect(() => {
+    return () => {
+      handleThumbPointerUp();
+    };
+  }, []);
 
   const shellClass =
     shellTheme === 'dark'
@@ -387,51 +475,60 @@ export function AppShell() {
       )}
 
       <aside
-        className={`fixed bottom-0 left-0 top-16 z-40 w-64 border-r border-border bg-surface px-3 py-4 transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed bottom-0 left-0 top-16 z-40 w-64 border-r border-border bg-surface flex flex-col transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="mb-2 flex items-center justify-between px-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-            {isReorderMode ? 'Drag to reorder' : 'Navigation'}
-          </span>
-          <div className="flex items-center gap-1">
-            {isReorderMode ? (
+        <div className="px-3 pt-4 pb-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+              {isReorderMode ? 'Drag to reorder' : 'Navigation'}
+            </span>
+            <div className="flex items-center gap-1">
+              {isReorderMode ? (
+                <button
+                  type="button"
+                  onClick={resetOrder}
+                  className="text-[10px] font-medium text-primary hover:text-primary-hover"
+                >
+                  Reset
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={resetOrder}
+                onClick={() => setIsReorderMode((current) => !current)}
                 className="text-[10px] font-medium text-primary hover:text-primary-hover"
               >
-                Reset
+                {isReorderMode ? 'Done' : 'Reorder'}
               </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setIsReorderMode((current) => !current)}
-              className="text-[10px] font-medium text-primary hover:text-primary-hover"
-            >
-              {isReorderMode ? 'Done' : 'Reorder'}
-            </button>
+            </div>
           </div>
         </div>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={navItems.map((item) => item.to)} strategy={verticalListSortingStrategy}>
-            <nav className="space-y-0.5">
-              {navItems.map((item) => (
-                <SortableNavItem
-                  key={item.to}
-                  item={item}
-                  isReorderMode={isReorderMode}
-                  isActive={item.to === currentPath}
-                />
-              ))}
-            </nav>
-          </SortableContext>
+        <div className="sidebar-nav-scroll relative flex-1 overflow-hidden">
+          <div
+            ref={scrollContainerRef}
+            className="h-full overflow-y-auto px-3 pb-4"
+          >
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={navItems.map((item) => item.to)} strategy={verticalListSortingStrategy}>
+                <nav className="space-y-0.5">
+                  {navItems.map((item) => (
+                    <SortableNavItem
+                      key={item.to}
+                      item={item}
+                      isReorderMode={isReorderMode}
+                      isActive={item.to === currentPath}
+                    />
+                  ))}
+                </nav>
+              </SortableContext>
+            </DndContext>
+          </div>
           <DragOverlay>
             {activeId ? (
               <div className="flex h-10 items-center gap-3 rounded-lg bg-surface px-3 shadow-elevated">
@@ -449,7 +546,26 @@ export function AppShell() {
               </div>
             ) : null}
           </DragOverlay>
-        </DndContext>
+          {scrollMetrics.isScrollable && (
+            <div
+              className="sidebar-nav-track"
+              onClick={handleTrackClick}
+            >
+              <div
+                className="sidebar-nav-thumb"
+                style={{
+                  height: scrollMetrics.thumbHeight,
+                  transform: `translateY(${scrollMetrics.thumbTop}px)`,
+                }}
+                onMouseDown={(event) => handleThumbPointerDown(event.clientY)}
+                onTouchStart={(event) => {
+                  event.preventDefault();
+                  handleThumbPointerDown(event.touches[0].clientY);
+                }}
+              />
+            </div>
+          )}
+        </div>
       </aside>
 
       <main className="min-h-screen pl-0 pt-16 lg:pl-64">
