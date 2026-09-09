@@ -14,7 +14,7 @@ import { RecentActivity } from '../dashboards/components/RecentActivity';
 
 export function AdminDashboardPage() {
   const { token } = useAuth();
-  const { data, isLoading, error, filters, updateFilters, refresh, lgas, wards, isLoadingLgas, isLoadingWards } = useDashboardData(token);
+  const { data, isLoading, error, filters, updateFilters, refresh, states, lgas, wards, isLoadingStates, isLoadingLgas, isLoadingWards } = useDashboardData(token);
 
   const handleTrendPeriodChange = (period: string) => {
     updateFilters({ trendPeriod: period as '24h' | '7d' | '30d' | '12m' });
@@ -46,8 +46,10 @@ export function AdminDashboardPage() {
       <FilterBar
         filters={filters}
         filterOptions={data.filterOptions}
+        states={states}
         lgas={lgas}
         wards={wards}
+        isLoadingStates={isLoadingStates}
         isLoadingLgas={isLoadingLgas}
         isLoadingWards={isLoadingWards}
         onFilterChange={updateFilters}
