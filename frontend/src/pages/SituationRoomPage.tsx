@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, BarChart3, Globe, Users, LayoutList, LayoutGrid } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowLeft, BarChart3, ChevronRight, Clock, Globe, LayoutGrid, LayoutList, MapPin, TrendingUp, Users } from 'lucide-react';
 
 import { useAuth } from '../auth/useAuth';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { OfficialLogos } from '../components/OfficialLogos';
 import { getSituationRoomSummary, getSituationRoomGeo, getSituationRoomStale, getSituationRoomIncidents, getProjection, getElectionTargets } from '../election/api';
 import type { GeoRollupItem, Incident, Projection, SituationRoomSummary } from '../election/types';
 
@@ -30,7 +31,9 @@ function readPersistedViewMode(): ViewMode {
 export function SituationRoomPage() {
   const { token, user } = useAuth();
   const [summary, setSummary] = useState<SituationRoomSummary | null>(null);
-  const [geoLevel, setGeoLevel] = useState<GeoLevel>('lga');
+  const [geoLevel, setGeoLevel] = useState<GeoLevel>('state');
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedLga, setSelectedLga] = useState<string | null>(null);
   const [geoData, setGeoData] = useState<GeoRollupItem[]>([]);
   const [stalePus, setStalePus] = useState<{ id: string; puCode: string; puName: string; ward: string; lga: string; state: string; lastCalledAt: string | null; checkInIntervalMinutes: number; dueAt: string }[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -52,7 +55,7 @@ export function SituationRoomPage() {
       try {
         const [sum, geo, stale, inc, proj, tgt] = await Promise.all([
           getSituationRoomSummary(token!),
-          getSituationRoomGeo(token!, geoLevel),
+          getSituationRoomGeo(token!, geoLevel, { state: selectedState ?? undefined, lga: selectedLga ?? undefined }),
           getSituationRoomStale(token!),
           getSituationRoomIncidents(token!),
           getProjection(token!),
@@ -74,7 +77,7 @@ export function SituationRoomPage() {
     load();
     const interval = setInterval(load, 15000);
     return () => { active = false; clearInterval(interval); };
-  }, [token, geoLevel]);
+  }, [token, geoLevel, selectedState, selectedLga]);
 
   useEffect(() => {
     try {
@@ -129,7 +132,7 @@ export function SituationRoomPage() {
       const target = panelRefs.current[activePanelIndex];
       const container = cardContainerRef.current;
       if (target && container) {
-        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+        container.scrollTo({ top: target.offsetTop, behavior: 'auto' });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -138,9 +141,41 @@ export function SituationRoomPage() {
 
   const scrollToPanel = (index: number) => {
     const target = panelRefs.current[index];
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const container = cardContainerRef.current;
+    if (target && container) {
+      container.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
       setActivePanelIndex(index);
+    }
+  };
+
+  const selectGeoLevel = (level: GeoLevel) => {
+    setGeoLevel(level);
+    if (level === 'state') {
+      setSelectedState(null);
+      setSelectedLga(null);
+    } else if (level === 'lga') {
+      setSelectedLga(null);
+    }
+  };
+
+  const drillIntoGeo = (row: GeoRollupItem) => {
+    if (geoLevel === 'state' && row.state) {
+      setSelectedState(row.state);
+      setSelectedLga(null);
+      setGeoLevel('lga');
+    } else if (geoLevel === 'lga' && row.lga) {
+      setSelectedLga(row.lga);
+      setGeoLevel('ward');
+    }
+  };
+
+  const goBackGeo = () => {
+    if (geoLevel === 'ward') {
+      setSelectedLga(null);
+      setGeoLevel('lga');
+    } else if (geoLevel === 'lga') {
+      setSelectedState(null);
+      setGeoLevel('state');
     }
   };
 
@@ -228,7 +263,7 @@ export function SituationRoomPage() {
   const renderLiveProjection = (inCard: boolean) => (
     <div className={inCard ? 'flex h-full flex-col justify-center' : ''}>
       {inCard && <h2 className="text-card font-semibold text-ink mb-4">Live Projection</h2>}
-      <Card title={inCard ? undefined : 'Live Projection'}>
+      <Card title={inCard ? undefined : 'Live Projection'} actions={<TrendingUp className="h-5 w-5 text-success" aria-hidden="true" />}>
         <div className="px-6 py-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -250,7 +285,7 @@ export function SituationRoomPage() {
               <p className="text-section font-semibold text-ink">{target?.expectedTurnoutPercent ?? 0}%</p>
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-surface px-4 py-3 text-xs text-ink-muted">
+          <div className="glass-panel rounded-lg px-4 py-3 text-xs text-ink-muted">
             Provisional estimate based on {projection?.coveragePercent ?? 0}% of polling units reporting. Early results may not represent the full area — check the geographic breakdown for balance before drawing conclusions.
           </div>
         </div>
@@ -259,19 +294,19 @@ export function SituationRoomPage() {
   );
 
   const renderResults = () => (
-    <Card title="Results">
+    <Card title="Results" actions={<BarChart3 className="h-5 w-5 text-info" aria-hidden="true" />}>
       <div className="px-6 py-5">
         <p className="text-sm text-ink-muted">Party/candidate tallies are aggregated from polling unit reports below.</p>
         <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-lg border border-border bg-surface px-4 py-3">
+          <div className="glass-panel rounded-lg px-4 py-3">
             <p className="text-table text-ink-muted">Our Votes</p>
             <p className="mt-2 text-section font-semibold text-ink">{numberFormat(projection?.ourVotes ?? 0)}</p>
           </div>
-          <div className="rounded-lg border border-border bg-surface px-4 py-3">
+          <div className="glass-panel rounded-lg px-4 py-3">
             <p className="text-table text-ink-muted">Vote Share</p>
             <p className="mt-2 text-section font-semibold text-ink">{projection?.currentVoteSharePercent ?? 0}%</p>
           </div>
-          <div className="rounded-lg border border-border bg-surface px-4 py-3">
+          <div className="glass-panel rounded-lg px-4 py-3">
             <p className="text-table text-ink-muted">Projected Final</p>
             <p className="mt-2 text-section font-semibold text-ink">{numberFormat(projection?.projectedFinalVotes ?? 0)}</p>
           </div>
@@ -283,22 +318,26 @@ export function SituationRoomPage() {
   const renderGeo = (inCard: boolean) => (
     <div className={inCard ? 'flex h-full flex-col justify-center' : ''}>
       {inCard && <h2 className="text-card font-semibold text-ink mb-4">Geographic Coverage</h2>}
-      <Card title={inCard ? undefined : 'Geographic Coverage'}>
+      <Card title={inCard ? undefined : 'Geographic Coverage'} actions={<MapPin className="h-5 w-5 text-primary" aria-hidden="true" />}>
         <div className="px-6 py-5">
-          <div className="flex gap-2 mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             {(['state', 'lga', 'ward'] as GeoLevel[]).map((level) => (
-              <button key={level} onClick={() => setGeoLevel(level)} className={`btn btn-sm ${geoLevel === level ? 'btn-primary' : 'btn-secondary'}`}>
+              <button key={level} onClick={() => selectGeoLevel(level)} className={`btn btn-sm ${geoLevel === level ? 'btn-primary' : 'btn-secondary'}`}>
                 {level.toUpperCase()}
               </button>
             ))}
+          </div>
+          <div className="geo-breadcrumb mb-4" aria-label="Geographic drill-down path">
+            <button type="button" onClick={() => selectGeoLevel('state')}>Nigeria</button>
+            {selectedState && <><ChevronRight aria-hidden="true" /><button type="button" onClick={() => selectGeoLevel('lga')}>{selectedState}</button></>}
+            {selectedLga && <><ChevronRight aria-hidden="true" /><span>{selectedLga}</span></>}
+            {geoLevel !== 'state' && <button type="button" className="geo-back-button" onClick={goBackGeo}><ArrowLeft aria-hidden="true" />Back</button>}
           </div>
           <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
-                  {geoLevel !== 'ward' && <th>State</th>}
-                  {geoLevel === 'lga' && <th>LGA</th>}
-                  {geoLevel === 'ward' && <th>Ward</th>}
+                  <th>{geoLevel === 'state' ? 'State' : geoLevel === 'lga' ? 'LGA' : 'Ward'}</th>
                   <th>Total PUs</th>
                   <th>Reported</th>
                   <th>Coverage</th>
@@ -307,13 +346,11 @@ export function SituationRoomPage() {
               </thead>
               <tbody>
                 {geoData.length === 0 ? (
-                  <tr><td colSpan={geoLevel === 'state' ? 5 : geoLevel === 'lga' ? 6 : 6} className="text-center text-ink-muted">No data yet.</td></tr>
+                  <tr><td colSpan={5} className="text-center text-ink-muted">No data yet.</td></tr>
                 ) : (
                   geoData.map((row, idx) => (
                     <tr key={idx}>
-                      {geoLevel !== 'ward' && <td>{row.state}</td>}
-                      {geoLevel === 'lga' && <td>{row.lga}</td>}
-                      {geoLevel === 'ward' && <td>{row.ward}</td>}
+                      <td>{geoLevel === 'ward' ? row.ward : <button type="button" className="geo-drilldown-button" onClick={() => drillIntoGeo(row)}>{geoLevel === 'state' ? row.state : row.lga}<ChevronRight aria-hidden="true" /></button>}</td>
                       <td>{row.total_pus}</td>
                       <td>{row.pus_reported}</td>
                       <td>{row.total_pus > 0 ? Math.round((row.pus_reported / row.total_pus) * 100) : 0}%</td>
@@ -332,7 +369,7 @@ export function SituationRoomPage() {
   const renderStalePus = (inCard: boolean) => (
     <div className={inCard ? 'flex h-full flex-col justify-center' : ''}>
       {inCard && <h2 className="text-card font-semibold text-ink mb-4">Stale PUs</h2>}
-      <Card title={inCard ? undefined : 'Overdue Polling Units'}>
+      <Card title={inCard ? undefined : 'Overdue Polling Units'} actions={<Clock className="h-5 w-5 text-warning" aria-hidden="true" />}>
         <div className="px-6 py-5">
           <div className="table-container">
             <table className="table">
@@ -370,14 +407,14 @@ export function SituationRoomPage() {
   const renderIncidents = (inCard: boolean) => (
     <div className={inCard ? 'flex h-full flex-col justify-center' : ''}>
       {inCard && <h2 className="text-card font-semibold text-ink mb-4">Incident Feed</h2>}
-      <Card title={inCard ? undefined : 'Incident Feed'}>
+      <Card title={inCard ? undefined : 'Incident Feed'} actions={<AlertTriangle className="h-5 w-5 text-danger" aria-hidden="true" />}>
         <div className="px-6 py-5">
           {incidents.length === 0 ? (
             <p className="text-sm text-ink-muted">No incidents reported yet.</p>
           ) : (
             <div className="space-y-3">
               {incidents.slice(0, 20).map((inc) => (
-                <div key={inc.id} className="flex items-start justify-between gap-4 rounded-lg border border-border px-4 py-3">
+                <div key={inc.id} className="glass-panel flex items-start justify-between gap-4 rounded-lg px-4 py-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <Badge variant={severityVariant(inc.severity)}>{inc.severity}</Badge>
@@ -422,13 +459,16 @@ export function SituationRoomPage() {
     <section className={viewMode === 'card' ? 'situation-room-card-wrapper' : 'py-6 space-y-6'}>
       <div className={viewMode === 'card' ? 'situation-room-card-header px-4 sm:px-6 lg:px-8 pt-6' : ''}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-page font-bold text-ink">Situation Room</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <OfficialLogos compact />
+            <div>
+              <h1 className="text-page font-bold text-ink">Situation Room</h1>
             <p className="mt-1 text-body text-ink-muted">
               Live election monitoring dashboard. Data generated at: {new Date().toLocaleString()}
             </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-1 self-start sm:self-auto" role="tablist" aria-label="View mode">
+          <div className="glass-panel flex items-center gap-1 rounded-lg p-1 self-start sm:self-auto" role="tablist" aria-label="View mode">
             <button
               type="button"
               role="tab"

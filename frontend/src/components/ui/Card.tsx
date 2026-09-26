@@ -10,7 +10,7 @@ type CardProps = {
 
 export function Card({ title, description, actions, children, className = '' }: CardProps) {
   return (
-    <div className={`card ${className}`}>
+    <div className={`card glass-panel ${className}`}>
       {(title || description || actions) && (
         <div className="flex flex-col gap-1 border-b border-border px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>

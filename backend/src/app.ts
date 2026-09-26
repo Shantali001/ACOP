@@ -18,6 +18,7 @@ import { notificationsRouter } from './notifications/routes.js';
 import { auditRouter } from './audit/routes.js';
 import { settingsRouter } from './settings/routes.js';
 import { electionRouter } from './election/routes.js';
+import { geoRouter } from './geo/geo.routes.js';
 
 export const app = express();
 
@@ -51,6 +52,7 @@ app.use('/notifications', notificationsRouter);
 app.use('/audit-logs', auditRouter);
 app.use('/settings', settingsRouter);
 app.use('/election', electionRouter);
+app.use('/admin/geo', geoRouter);
 
 app.get('/health', (_req, res) => {
   res.json({

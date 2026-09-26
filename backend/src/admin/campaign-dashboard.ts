@@ -3,33 +3,61 @@ import { pool } from '../db/pool.js';
 
 export const campaignDashboardRouter = Router();
 
-function buildFilterConditions(query: Record<string, string | undefined>, prefix = '') {
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+type FilterOptions = {
+  prefix?: string;
+  startIndex?: number;
+  includeDateFilters?: boolean;
+  includeGeoFilters?: boolean;
+  includeAgentFilter?: boolean;
+};
+
+function buildFilterConditions(
+  query: Record<string, string | undefined>,
+  {
+    prefix = '',
+    startIndex = 1,
+    includeDateFilters = true,
+    includeGeoFilters = true,
+    includeAgentFilter = true,
+  }: FilterOptions = {},
+) {
   const conditions: string[] = [];
   const values: unknown[] = [];
-  let paramIndex = 1;
-  const table = prefix === 'c.' ? 'customers' : 'calls';
+  let paramIndex = startIndex;
 
-  if (query.dateFrom) {
-    conditions.push(`${prefix}${table}.created_at >= $${paramIndex++}`);
+  if (includeDateFilters && query.dateFrom) {
+    conditions.push(`${prefix}created_at >= $${paramIndex++}::date`);
     values.push(query.dateFrom);
   }
-  if (query.dateTo) {
-    conditions.push(`${prefix}${table}.created_at <= $${paramIndex++}`);
+  if (includeDateFilters && query.dateTo) {
+    // Add 1 day so "to" date is inclusive
+    conditions.push(
+      `${prefix}created_at < ($${paramIndex++}::date + interval '1 day')`,
+    );
     values.push(query.dateTo);
   }
-  if (query.state) {
-    conditions.push(`${prefix}state = $${paramIndex++}`);
+
+  if (includeGeoFilters && query.state) {
+    conditions.push(
+      `upper(trim(${prefix}state)) = upper(trim($${paramIndex++}))`,
+    );
     values.push(query.state);
   }
-  if (query.lga) {
-    conditions.push(`${prefix}lga = $${paramIndex++}`);
+  if (includeGeoFilters && query.lga) {
+    conditions.push(
+      `upper(trim(${prefix}lga)) = upper(trim($${paramIndex++}))`,
+    );
     values.push(query.lga);
   }
-  if (query.ward) {
-    conditions.push(`${prefix}ward = $${paramIndex++}`);
+  if (includeGeoFilters && query.ward) {
+    conditions.push(
+      `upper(trim(${prefix}ward)) = upper(trim($${paramIndex++}))`,
+    );
     values.push(query.ward);
   }
-  if (query.agentId) {
+  if (includeAgentFilter && query.agentId) {
     conditions.push(`${prefix}agent_id = $${paramIndex++}`);
     values.push(query.agentId);
   }
@@ -46,60 +74,78 @@ async function countQuery(sql: string, values: unknown[] = []) {
   return Number(result.rows[0]?.count ?? 0);
 }
 
+// ── GET /admin/campaign-dashboard ────────────────────────────────────────────
+
 campaignDashboardRouter.get('/', async (req, res, next) => {
   try {
     const query = req.query as Record<string, string | undefined>;
     const now = new Date();
 
-    // Build dynamic filter for customers table
-    const callFilters = buildFilterConditions(query);
-    const customerFilters = buildFilterConditions(query, 'c.');
+    // The outcome occupies $1, so all request filters begin at $2. Geographic
+    // filters apply to customers, while date and agent filters apply to calls.
+    const callFilters = buildFilterConditions(query, {
+      startIndex: 2,
+      includeGeoFilters: false,
+    });
+    const customerFilters = buildFilterConditions(query, {
+      prefix: 'c.',
+      startIndex: 2 + callFilters.values.length,
+      includeDateFilters: false,
+      includeAgentFilter: false,
+    });
     const hasCustomerFilter = customerFilters.conditions.length > 0;
 
     function buildCountQuery(outcome: string) {
-      const conditions = [`outcome = $1::call_outcome_enum`, ...callFilters.conditions, ...customerFilters.conditions];
+      const conditions = [
+        `outcome = $1::call_outcome_enum`,
+        ...callFilters.conditions,
+        ...customerFilters.conditions,
+      ];
       const values = [outcome, ...callFilters.values, ...customerFilters.values];
-      const fromClause = hasCustomerFilter ? 'from calls join customers c on c.id = calls.customer_id' : 'from calls';
-      return countQuery(`select count(*) as count ${fromClause} where ${conditions.join(' and ')}`, values);
+      const fromClause = hasCustomerFilter
+        ? 'from calls join customers c on c.id = calls.customer_id'
+        : 'from calls';
+      return countQuery(
+        `select count(*) as count ${fromClause} where ${conditions.join(' and ')}`,
+        values,
+      );
     }
 
-    // ── Summary Cards ──────────────────────────────────────────────
+    // ── Summary Cards ─────────────────────────────────────────────────────────
 
-    // Total Supporters (all calls with supporter outcome)
     const totalSupporters = await buildCountQuery('SUPPORTER');
-
-    // Total Opposition
     const totalOpposition = await buildCountQuery('OPPOSITION');
-
-    // Total Undecided
     const totalUndecided = await buildCountQuery('UNDECIDED');
 
-    // New Supporters Today
     const newSupportersToday = await countQuery(
-      `select count(*) as count from calls where outcome = 'SUPPORTER' and created_at >= date_trunc('day', now())`,
+      `select count(*) as count from calls
+       where outcome = 'SUPPORTER'
+         and created_at >= date_trunc('day', now())`,
     );
 
-    // New Supporters This Week
     const newSupportersThisWeek = await countQuery(
-      `select count(*) as count from calls where outcome = 'SUPPORTER' and created_at >= date_trunc('week', now())`,
+      `select count(*) as count from calls
+       where outcome = 'SUPPORTER'
+         and created_at >= date_trunc('week', now())`,
     );
 
-    // Calls Made Today
     const callsMadeToday = await countQuery(
-      `select count(*) as count from calls where created_at >= date_trunc('day', now())`,
+      `select count(*) as count from calls
+       where created_at >= date_trunc('day', now())`,
     );
 
-    // Active Agents
     const activeAgents = await countQuery(
-      `select count(*) as count from users where role = 'AGENT' and status = 'ACTIVE'`,
+      `select count(*) as count from users
+       where role = 'AGENT' and status = 'ACTIVE'`,
     );
 
-    // Total Registered Supporters (distinct customers)
     const totalRegisteredSupporters = await countQuery(
-      `select count(distinct customer_id) as count from calls where outcome = 'SUPPORTER'`,
+      `select count(distinct customer_id) as count from calls
+       where outcome = 'SUPPORTER'`,
     );
 
-    // ── Previous Period Comparisons ──────────────────────────────
+    // ── Previous Period Comparisons ───────────────────────────────────────────
+
     async function getPreviousCount(sinceDays: number, outcomeFilter?: string) {
       const conditions = [
         `created_at >= now() - interval '${sinceDays * 2} days'`,
@@ -130,14 +176,16 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
       return Math.round(((current - previous) / previous) * 100);
     }
 
-    // ── Campaign Support Distribution ──────────────────────────
+    // ── Campaign Support Distribution ─────────────────────────────────────────
+
     const supportDistribution = [
       { name: 'Supporters', value: totalSupporters, color: '#16A34A' },
       { name: 'Opposition', value: totalOpposition, color: '#DC2626' },
       { name: 'Undecided', value: totalUndecided, color: '#D97706' },
     ];
 
-    // ── New Supporters Trend ──────────────────────────────────
+    // ── New Supporters Trend ──────────────────────────────────────────────────
+
     const trendPeriod = query.trendPeriod || '7d';
     let trendInterval: string;
     let trendFormat: string;
@@ -159,80 +207,90 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
         trendFormat = 'YYYY-MM';
         trendRange = '12 months';
         break;
-      default: // 7d
+      default:
         trendInterval = 'day';
         trendFormat = 'YYYY-MM-DD';
         trendRange = '7 days';
     }
 
-    const newSupportersTrend = await pool.query<{ period: string; count: string | number }>(
-      `
-        select
-          to_char(date_trunc($1, created_at), $2) as period,
-          count(*)::int as count
-        from calls
-        where outcome = 'SUPPORTER'
-          and created_at >= now() - $3::interval
-        group by period
-        order by period asc
-      `,
+    const newSupportersTrend = await pool.query<{
+      period: string;
+      count: string | number;
+    }>(
+      `select
+         to_char(date_trunc($1, created_at), $2) as period,
+         count(*)::int as count
+       from calls
+       where outcome = 'SUPPORTER'
+         and created_at >= now() - $3::interval
+       group by period
+       order by period asc`,
       [trendInterval, trendFormat, trendRange],
     );
 
-    // ── Calls Per Agent ──────────────────────────────────────
-    const callsPerAgent = await pool.query<{ agent_name: string; agent_id: string; calls: string | number }>(
-      `
-        select
-          u.full_name as agent_name,
-          a.id as agent_id,
-          count(c.id)::int as calls
-        from agents a
-        join users u on u.id = a.user_id
-        left join calls c on c.agent_id = a.id
-        where u.role = 'AGENT'
-        group by u.full_name, a.id
-        order by count(c.id) desc
-      `,
+    // ── Calls Per Agent ───────────────────────────────────────────────────────
+
+    const callsPerAgent = await pool.query<{
+      agent_name: string;
+      agent_id: string;
+      calls: string | number;
+    }>(
+      `select
+         u.full_name as agent_name,
+         a.id as agent_id,
+         count(c.id)::int as calls
+       from agents a
+       join users u on u.id = a.user_id
+       left join calls c on c.agent_id = a.id
+       where u.role = 'AGENT'
+       group by u.full_name, a.id
+       order by count(c.id) desc`,
     );
 
-    // ── Supporters by Ward ──────────────────────────────────
-    const wardFilter = buildFilterConditions(query, 'c.');
-    const supportersByWard = await pool.query<{ ward: string; count: string | number }>(
-      `
-        select
-          c.ward,
-          count(distinct c.id)::int as count
-        from customers c
-        join calls ca on ca.customer_id = c.id and ca.outcome = 'SUPPORTER'
-        ${whereClause(wardFilter.conditions)}
-        group by c.ward
-        order by count(distinct c.id) desc
-        limit 20
-      `,
+    // ── Supporters by Ward ────────────────────────────────────────────────────
+
+    const wardFilter = buildFilterConditions(query, {
+      prefix: 'c.',
+      includeDateFilters: false,
+      includeAgentFilter: false,
+    });
+    const supportersByWard = await pool.query<{
+      ward: string;
+      count: string | number;
+    }>(
+      `select
+         initcap(trim(c.ward)) as ward,
+         count(distinct c.id)::int as count
+       from customers c
+       join calls ca on ca.customer_id = c.id and ca.outcome = 'SUPPORTER'
+       ${whereClause(wardFilter.conditions)}
+       group by initcap(trim(c.ward))
+       order by count(distinct c.id) desc
+       limit 20`,
       wardFilter.values,
     );
 
-    // ── Supporters vs Opposition by LGA ──────────────────────
+    // ── Supporters vs Opposition by LGA ───────────────────────────────────────
+
     const supportersVsOppositionLGA = await pool.query<{
       lga: string;
       supporters: string | number;
       opposition: string | number;
       undecided: string | number;
     }>(
-      `
-        select
-          c.lga,
-          count(*) filter (where ca.outcome = 'SUPPORTER')::int as supporters,
-          count(*) filter (where ca.outcome = 'OPPOSITION')::int as opposition,
-          count(*) filter (where ca.outcome = 'UNDECIDED')::int as undecided
-        from customers c
-        join calls ca on ca.customer_id = c.id
-        group by c.lga
-        order by count(*) filter (where ca.outcome = 'SUPPORTER') desc
-      `,
+      `select
+         initcap(trim(c.lga)) as lga,
+         count(*) filter (where ca.outcome = 'SUPPORTER')::int as supporters,
+         count(*) filter (where ca.outcome = 'OPPOSITION')::int as opposition,
+         count(*) filter (where ca.outcome = 'UNDECIDED')::int as undecided
+       from customers c
+       join calls ca on ca.customer_id = c.id
+       group by initcap(trim(c.lga))
+       order by count(*) filter (where ca.outcome = 'SUPPORTER') desc`,
     );
 
-    // ── Agent Performance Leaderboard ────────────────────────
+    // ── Agent Performance Leaderboard ─────────────────────────────────────────
+
     const agentLeaderboard = await pool.query<{
       agent_id: string;
       agent_name: string;
@@ -241,27 +299,29 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
       supporters_registered: string | number;
       success_rate: string | number;
     }>(
-      `
-        select
-          a.id as agent_id,
-          u.full_name as agent_name,
-          u.email,
-          count(c.id)::int as calls_completed,
-          count(c.id) filter (where c.outcome = 'SUPPORTER')::int as supporters_registered,
-          case
-            when count(c.id) = 0 then 0
-            else round((count(c.id) filter (where c.outcome = 'SUPPORTER')::numeric / count(c.id)::numeric) * 100)
-          end::int as success_rate
-        from agents a
-        join users u on u.id = a.user_id
-        left join calls c on c.agent_id = a.id
-        where u.role = 'AGENT'
-        group by a.id, u.full_name, u.email
-        order by count(c.id) filter (where c.outcome = 'SUPPORTER') desc
-      `,
+      `select
+         a.id as agent_id,
+         u.full_name as agent_name,
+         u.email,
+         count(c.id)::int as calls_completed,
+         count(c.id) filter (where c.outcome = 'SUPPORTER')::int as supporters_registered,
+         case
+           when count(c.id) = 0 then 0
+           else round(
+             (count(c.id) filter (where c.outcome = 'SUPPORTER')::numeric
+               / count(c.id)::numeric) * 100
+           )
+         end::int as success_rate
+       from agents a
+       join users u on u.id = a.user_id
+       left join calls c on c.agent_id = a.id
+       where u.role = 'AGENT'
+       group by a.id, u.full_name, u.email
+       order by count(c.id) filter (where c.outcome = 'SUPPORTER') desc`,
     );
 
-    // ── Daily Call Activity ──────────────────────────────────
+    // ── Daily Call Activity ───────────────────────────────────────────────────
+
     const callActivityPeriod = query.callActivity || 'weekly';
     let activityInterval: string;
     let activityFormat: string;
@@ -278,47 +338,53 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
         activityFormat = 'YYYY-MM-DD';
         activityRange = '1 month';
         break;
-      default: // weekly
+      default:
         activityInterval = 'day';
         activityFormat = 'YYYY-MM-DD';
         activityRange = '7 days';
     }
 
-    const dailyCallActivity = await pool.query<{ period: string; calls: string | number }>(
-      `
-        select
-          to_char(date_trunc($1, created_at), $2) as period,
-          count(*)::int as calls
-        from calls
-        where created_at >= now() - $3::interval
-        group by period
-        order by period asc
-      `,
+    const dailyCallActivity = await pool.query<{
+      period: string;
+      calls: string | number;
+    }>(
+      `select
+         to_char(date_trunc($1, created_at), $2) as period,
+         count(*)::int as calls
+       from calls
+       where created_at >= now() - $3::interval
+       group by period
+       order by period asc`,
       [activityInterval, activityFormat, activityRange],
     );
 
-    // ── Support Conversion Rate ──────────────────────────────
+    // ── Support Conversion Rate ───────────────────────────────────────────────
+
     const conversionData = await pool.query<{
       calls_made: string | number;
       answered_calls: string | number;
       supporters_gained: string | number;
     }>(
-      `
-        select
-          count(*)::int as calls_made,
-          count(*) filter (where outcome in ('SUPPORTER', 'OPPOSITION', 'UNDECIDED'))::int as answered_calls,
-          count(*) filter (where outcome = 'SUPPORTER')::int as supporters_gained
-        from calls
-      `,
+      `select
+         count(*)::int as calls_made,
+         count(*) filter (
+           where outcome in ('SUPPORTER', 'OPPOSITION', 'UNDECIDED')
+         )::int as answered_calls,
+         count(*) filter (where outcome = 'SUPPORTER')::int as supporters_gained
+       from calls`,
     );
 
     const conversion = conversionData.rows[0];
     const callsMade = Number(conversion?.calls_made ?? 0);
     const answeredCalls = Number(conversion?.answered_calls ?? 0);
     const supportersGained = Number(conversion?.supporters_gained ?? 0);
-    const conversionRate = callsMade > 0 ? Math.round((supportersGained / callsMade) * 100 * 10) / 10 : 0;
+    const conversionRate =
+      callsMade > 0
+        ? Math.round((supportersGained / callsMade) * 100 * 10) / 10
+        : 0;
 
-    // ── Recent Campaign Activity ────────────────────────────
+    // ── Recent Campaign Activity ──────────────────────────────────────────────
+
     const recentActivity = await pool.query<{
       id: string;
       user_name: string;
@@ -326,47 +392,71 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
       entity_type: string;
       created_at: string;
     }>(
-      `
-        select
-          al.id,
-          coalesce(u.full_name, 'System') as user_name,
-          al.action,
-          al.entity_type,
-          al.created_at
-        from audit_logs al
-        left join users u on u.id = al.user_id
-        order by al.created_at desc
-        limit 20
-      `,
+      `select
+         al.id,
+         coalesce(u.full_name, 'System') as user_name,
+         al.action,
+         al.entity_type,
+         al.created_at
+       from audit_logs al
+       left join users u on u.id = al.user_id
+       order by al.created_at desc
+       limit 20`,
     );
 
-    // ── Filter Options (for dropdowns) ──────────────────────
-    const [states, lgas, wards, agents] = await Promise.all([
-      pool.query<{ state: string }>('select distinct state from customers where state is not null order by state'),
-      pool.query<{ lga: string }>('select distinct lga from customers where lga is not null order by lga'),
-      pool.query<{ ward: string }>('select distinct ward from customers where ward is not null order by ward'),
+    // ── Filter Options (deduplicated + normalized) ────────────────────────────
+
+    const [states, agents] = await Promise.all([
+      // FIX 3: Normalize state names with initcap + distinct to remove duplicates
+      pool.query<{ state: string }>(
+        `select distinct initcap(trim(state)) as state
+         from customers
+         where state is not null and trim(state) <> ''
+         order by state`,
+      ),
       pool.query<{ id: string; full_name: string }>(
-        `select a.id, u.full_name from agents a join users u on u.id = a.user_id where u.role = 'AGENT' order by u.full_name`,
+        `select a.id, u.full_name
+         from agents a
+         join users u on u.id = a.user_id
+         where u.role = 'AGENT'
+         order by u.full_name`,
       ),
     ]);
 
-    // ── Response ────────────────────────────────────────────
+    // ── Response ──────────────────────────────────────────────────────────────
+
     res.json({
       generatedAt: now.toISOString(),
 
-      // Summary Cards
       summaryCards: {
-        totalSupporters: { value: totalSupporters, change: calcChange(totalSupporters, prevSupporters) },
-        totalOpposition: { value: totalOpposition, change: calcChange(totalOpposition, prevOpposition) },
-        totalUndecided: { value: totalUndecided, change: calcChange(totalUndecided, prevUndecided) },
-        newSupportersToday: { value: newSupportersToday, change: calcChange(newSupportersToday, prevNewSupporters) },
+        totalSupporters: {
+          value: totalSupporters,
+          change: calcChange(totalSupporters, prevSupporters),
+        },
+        totalOpposition: {
+          value: totalOpposition,
+          change: calcChange(totalOpposition, prevOpposition),
+        },
+        totalUndecided: {
+          value: totalUndecided,
+          change: calcChange(totalUndecided, prevUndecided),
+        },
+        newSupportersToday: {
+          value: newSupportersToday,
+          change: calcChange(newSupportersToday, prevNewSupporters),
+        },
         newSupportersThisWeek: { value: newSupportersThisWeek, change: 0 },
-        callsMadeToday: { value: callsMadeToday, change: calcChange(callsMadeToday, prevCallsToday) },
+        callsMadeToday: {
+          value: callsMadeToday,
+          change: calcChange(callsMadeToday, prevCallsToday),
+        },
         activeAgents: { value: activeAgents, change: 0 },
-        totalRegisteredSupporters: { value: totalRegisteredSupporters, change: 0 },
+        totalRegisteredSupporters: {
+          value: totalRegisteredSupporters,
+          change: 0,
+        },
       },
 
-      // Charts
       supportDistribution,
       newSupportersTrend: newSupportersTrend.rows.map((row) => ({
         period: row.period,
@@ -400,7 +490,6 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
         calls: Number(row.calls ?? 0),
       })),
 
-      // Conversion
       conversion: {
         callsMade,
         answeredCalls,
@@ -408,7 +497,6 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
         conversionRate,
       },
 
-      // Recent Activity
       recentActivity: recentActivity.rows.slice(0, 20).map((row) => ({
         id: row.id,
         userName: row.user_name,
@@ -417,11 +505,11 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
         createdAt: row.created_at,
       })),
 
-      // Filter Options
+      // FIX 4: Only return states here — LGAs and wards come from cascade endpoints
       filterOptions: {
         states: states.rows.map((r) => r.state),
-        lgas: lgas.rows.map((r) => r.lga),
-        wards: wards.rows.map((r) => r.ward),
+        lgas: [],
+        wards: [],
         agents: agents.rows.map((r) => ({ id: r.id, name: r.full_name })),
       },
     });
@@ -430,19 +518,21 @@ campaignDashboardRouter.get('/', async (req, res, next) => {
   }
 });
 
+// ── GET /admin/campaign-dashboard/lgas ───────────────────────────────────────
+// FIX 5: Cascade — returns only LGAs belonging to the selected state
+
 campaignDashboardRouter.get('/lgas', async (req, res, next) => {
   try {
     const state = (req.query.state as string | undefined)?.trim();
-    if (!state) {
-      return res.json([]);
-    }
+    if (!state) return res.json([]);
+
     const result = await pool.query<{ lga: string }>(
-      `select distinct c.lga
+      `select distinct initcap(trim(c.lga)) as lga
        from customers c
-       where c.state = $1
+       where upper(trim(c.state)) = upper(trim($1))
          and c.lga is not null
-         and c.lga <> ''
-       order by c.lga`,
+         and trim(c.lga) <> ''
+       order by lga`,
       [state],
     );
     res.json(result.rows.map((r) => r.lga));
@@ -451,25 +541,38 @@ campaignDashboardRouter.get('/lgas', async (req, res, next) => {
   }
 });
 
+// ── GET /admin/campaign-dashboard/wards ──────────────────────────────────────
+// FIX 6: Cascade — returns only wards belonging to the selected LGA
+
 campaignDashboardRouter.get('/wards', async (req, res, next) => {
   try {
+    const state = (req.query.state as string | undefined)?.trim();
     const lga = (req.query.lga as string | undefined)?.trim();
-    if (!lga) {
-      return res.json([]);
-    }
+    if (!state || !lga) return res.json([]);
+
     const result = await pool.query<{ ward: string }>(
-      `select distinct c.ward
-       from customers c
-       where c.lga = $1
-         and c.ward is not null
-         and c.ward <> ''
-       order by c.ward`,
-      [lga],
+      `select min(ward_name) as ward
+       from (
+         select trim(ward) as ward_name
+         from polling_units
+         where upper(trim(state)) = upper(trim($1))
+           and upper(trim(lga)) = upper(trim($2))
+           and ward is not null
+           and trim(ward) <> ''
+         union all
+         select trim(ward) as ward_name
+         from customers
+         where upper(trim(state)) = upper(trim($1))
+           and upper(trim(lga)) = upper(trim($2))
+           and ward is not null
+           and trim(ward) <> ''
+       ) ward_sources
+       group by lower(ward_name)
+       order by lower(min(ward_name))`,
+      [state, lga],
     );
     res.json(result.rows.map((r) => r.ward));
   } catch (error) {
     next(error);
   }
 });
-
-

@@ -79,7 +79,8 @@ export function useDashboardData(token: string | null) {
         if (!active) return;
         setStates(list);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[useDashboardData] getStates failed:', err);
         if (!active) return;
         setStates([]);
       })
@@ -133,10 +134,10 @@ export function useDashboardData(token: string | null) {
 
   useEffect(() => {
     if (!token) return;
+    const state = filters.state?.trim();
     const lga = filters.lga?.trim();
 
-    // FIX: Clear wards immediately when LGA is cleared
-    if (!lga) {
+    if (!state || !lga) {
       setWards([]);
       return;
     }
@@ -145,7 +146,7 @@ export function useDashboardData(token: string | null) {
     setIsLoadingWards(true);
     setWards([]);
 
-    getWardsByLga(token, lga)
+    getWardsByLga(token, state, lga)
       .then((list) => {
         if (!active) return;
         setWards(list);
@@ -165,7 +166,7 @@ export function useDashboardData(token: string | null) {
     return () => {
       active = false;
     };
-  }, [token, filters.lga]);
+  }, [token, filters.state, filters.lga]);
 
   // ── Public API ─────────────────────────────────────────────────────────────
 

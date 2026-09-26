@@ -1,4 +1,11 @@
-import type { AdminDashboardMetrics, AgentDashboardMetrics, CampaignDashboardData, DashboardFilters, SupervisorResponse } from './types';
+import type {
+  AdminDashboardMetrics,
+  AgentDashboardMetrics,
+  CampaignDashboardData,
+  DashboardFilters,
+  SupervisorResponse,
+} from './types';
+import nigeriaStatesLgas from './nigeria-states-lgas.json';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 
@@ -53,17 +60,35 @@ export async function getCampaignDashboard(token: string, filters: DashboardFilt
   return (await response.json()) as CampaignDashboardData;
 }
 
+// Full static list of all 36 states + FCT — always complete, not dependent on
+// which states currently have customer records.
+export async function getStates(token: string) {
+  const url = `${apiBaseUrl}/admin/geo/states`;
+  const response = await fetch(url, { headers: authHeaders(token) });
+  if (!response.ok) {
+    return Object.keys(nigeriaStatesLgas).sort();
+  }
+  return (await response.json()) as string[];
+}
+
+// Static LGA list for the given state — always complete, from the geo data
+// file rather than whatever LGAs happen to have customers already.
 export async function getLgasByState(token: string, state: string) {
-  const url = `${apiBaseUrl}/admin/campaign-dashboard/lgas?state=${encodeURIComponent(state)}`;
+  const url = `${apiBaseUrl}/admin/geo/lgas?state=${encodeURIComponent(state)}`;
+  const response = await fetch(url, { headers: authHeaders(token) });
+  if (!response.ok) {
+    const matchedState = Object.keys(nigeriaStatesLgas).find((name) => name.toLowerCase() === state.trim().toLowerCase());
+    return matchedState ? nigeriaStatesLgas[matchedState] : [];
+  }
+  return (await response.json()) as string[];
+}
+
+// Wards come from imported polling units and customer records, scoped to the
+// selected state and LGA to avoid collisions between same-named LGAs.
+export async function getWardsByLga(token: string, state: string, lga: string) {
+  const params = new URLSearchParams({ state, lga });
+  const url = `${apiBaseUrl}/admin/campaign-dashboard/wards?${params.toString()}`;
   const response = await fetch(url, { headers: authHeaders(token) });
   if (!response.ok) throw new Error(await parseError(response));
   return (await response.json()) as string[];
 }
-
-export async function getWardsByLga(token: string, lga: string) {
-  const url = `${apiBaseUrl}/admin/campaign-dashboard/wards?lga=${encodeURIComponent(lga)}`;
-  const response = await fetch(url, { headers: authHeaders(token) });
-  if (!response.ok) throw new Error(await parseError(response));
-  return (await response.json()) as string[];
-}
-

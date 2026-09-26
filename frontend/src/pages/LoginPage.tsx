@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/useAuth';
 import { Logo } from '../components/Logo';
+import { OfficialLogos } from '../components/OfficialLogos';
 
 export function LoginPage() {
   const { isAuthenticated, login, user } = useAuth();
@@ -37,12 +38,13 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6">
+    <main className="app-shell flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-5 flex flex-col items-center gap-4">
           <Logo showText />
+          <OfficialLogos />
         </div>
-        <div className="card">
+        <div className="card glass-panel">
           <div className="px-6 pb-6 pt-6">
             <h1 className="text-page font-bold text-ink">Sign in</h1>
             <p className="mt-2 text-body text-ink-muted">Enter your credentials to access your account.</p>

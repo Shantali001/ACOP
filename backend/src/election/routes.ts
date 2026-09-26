@@ -573,21 +573,35 @@ electionRouter.get('/situation-room/summary', situationRoomAccess, async (req, r
 electionRouter.get('/situation-room/geo', situationRoomAccess, async (req, res, next) => {
   try {
     const level = typeof req.query.level === 'string' ? req.query.level : 'lga';
+    const state = typeof req.query.state === 'string' ? req.query.state.trim() : '';
+    const lga = typeof req.query.lga === 'string' ? req.query.lga.trim() : '';
     if (!['state', 'lga', 'ward'].includes(level)) {
       res.status(400).json({ message: 'Invalid level. Use state, lga, or ward.' });
       return;
     }
 
+    const conditions: string[] = [];
+    const values: string[] = [];
+    if (state) {
+      values.push(state);
+      conditions.push(`state = $${values.length}`);
+    }
+    if (lga) {
+      values.push(lga);
+      conditions.push(`lga = $${values.length}`);
+    }
+    const whereClause = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+
     let sql = '';
     if (level === 'state') {
-      sql = `SELECT state, COUNT(*) AS total_pus, COUNT(pus_reported) AS pus_reported, SUM(registered_voters) AS registered_voters, SUM(accredited_voters) AS accredited_voters FROM election_geo_rollup GROUP BY state ORDER BY state`;
+      sql = `SELECT state, COUNT(*) AS total_pus, COUNT(pus_reported) AS pus_reported, SUM(registered_voters) AS registered_voters, SUM(accredited_voters) AS accredited_voters FROM election_geo_rollup${whereClause} GROUP BY state ORDER BY state`;
     } else if (level === 'lga') {
-      sql = `SELECT state, lga, COUNT(*) AS total_pus, COUNT(pus_reported) AS pus_reported, SUM(registered_voters) AS registered_voters, SUM(accredited_voters) AS accredited_voters FROM election_geo_rollup GROUP BY state, lga ORDER BY state, lga`;
+      sql = `SELECT state, lga, COUNT(*) AS total_pus, COUNT(pus_reported) AS pus_reported, SUM(registered_voters) AS registered_voters, SUM(accredited_voters) AS accredited_voters FROM election_geo_rollup${whereClause} GROUP BY state, lga ORDER BY state, lga`;
     } else {
-      sql = `SELECT state, lga, ward, COUNT(*) AS total_pus, COUNT(pus_reported) AS pus_reported, SUM(registered_voters) AS registered_voters, SUM(accredited_voters) AS accredited_voters FROM election_geo_rollup GROUP BY state, lga, ward ORDER BY state, lga, ward`;
+      sql = `SELECT state, lga, ward, COUNT(*) AS total_pus, COUNT(pus_reported) AS pus_reported, SUM(registered_voters) AS registered_voters, SUM(accredited_voters) AS accredited_voters FROM election_geo_rollup${whereClause} GROUP BY state, lga, ward ORDER BY state, lga, ward`;
     }
 
-    const result = await pool.query(sql);
+    const result = await pool.query(sql, values);
     res.json({ data: result.rows });
   } catch (error) {
     next(error);

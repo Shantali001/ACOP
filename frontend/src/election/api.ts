@@ -129,8 +129,11 @@ export async function getSituationRoomSummary(token: string) {
   return (await response.json()) as Promise<SituationRoomSummary>;
 }
 
-export async function getSituationRoomGeo(token: string, level: 'state' | 'lga' | 'ward') {
-  const response = await fetch(`${apiBaseUrl}/election/situation-room/geo?level=${level}`, { headers: authHeaders(token) });
+export async function getSituationRoomGeo(token: string, level: 'state' | 'lga' | 'ward', scope: { state?: string; lga?: string } = {}) {
+  const searchParams = new URLSearchParams({ level });
+  if (scope.state) searchParams.set('state', scope.state);
+  if (scope.lga) searchParams.set('lga', scope.lga);
+  const response = await fetch(`${apiBaseUrl}/election/situation-room/geo?${searchParams.toString()}`, { headers: authHeaders(token) });
   if (!response.ok) throw new Error(await parseError(response));
   return (await response.json()) as Promise<{ data: GeoRollupItem[] }>;
 }

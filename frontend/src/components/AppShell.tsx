@@ -44,6 +44,7 @@ import { listNotifications, markAllNotificationsRead } from '../notifications/ap
 import { getSettings } from '../settings/api';
 import type { NotificationItem } from '../notifications/types';
 import { Logo } from './Logo';
+import { OfficialLogos } from './OfficialLogos';
 
 const iconMap = {
   Dashboard: LayoutDashboard,
@@ -359,18 +360,13 @@ export function AppShell() {
     };
   }, []);
 
-  const shellClass =
-    shellTheme === 'dark'
-      ? 'min-h-screen bg-slate-950 text-slate-100'
-      : shellTheme === 'gold'
-        ? 'min-h-screen bg-amber-50 text-ink'
-        : 'min-h-screen bg-background text-ink';
+  const shellClass = `app-shell min-h-screen ${shellTheme === 'dark' ? 'theme-dark' : shellTheme === 'gold' ? 'theme-gold' : ''}`;
 
   const currentPath = window.location.pathname;
 
   return (
     <div className={shellClass}>
-      <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-border bg-surface/80 backdrop-blur-xl">
+      <header className="app-header glass-panel fixed inset-x-0 top-0 z-30 h-16 border-b border-border">
         <div className="flex h-full items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <button
@@ -384,6 +380,7 @@ export function AppShell() {
             <Link to={dashboardPath} className="flex items-center">
               <Logo />
             </Link>
+            <OfficialLogos compact className="hidden sm:flex" />
           </div>
 
           <div className="mx-4 hidden max-w-md flex-1 lg:block">
@@ -475,7 +472,7 @@ export function AppShell() {
       )}
 
       <aside
-        className={`fixed bottom-0 left-0 top-16 z-40 w-64 border-r border-border bg-surface flex flex-col transition-transform duration-200 lg:translate-x-0 ${
+        className={`sidebar-panel glass-panel fixed bottom-0 left-0 top-16 z-40 w-64 border-r border-border flex flex-col transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
