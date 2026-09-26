@@ -53,16 +53,6 @@ async function findOrCreateLga(client, stateId, name) {
 }
 
 async function main() {
-  const [states, lgas, wards] = await Promise.all([
-    getJson('states.json'),
-    getJson('lgas.json'),
-    getJson('wards.json'),
-  ]);
-
-  if (states.length !== 37 || lgas.length !== 774 || wards.length !== 8809) {
-    throw new Error(`Unexpected INEC data counts: ${states.length} states, ${lgas.length} LGAs, ${wards.length} wards.`);
-  }
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -84,6 +74,23 @@ async function main() {
         unique (name, lga_id)
       );
     `);
+
+    const existingWards = await client.query('select count(*)::int as count from wards');
+    if (existingWards.rows[0].count >= 8809) {
+      await client.query('COMMIT');
+      console.log('INEC ward reference data is already present. Nothing to import.');
+      return;
+    }
+
+    const [states, lgas, wards] = await Promise.all([
+      getJson('states.json'),
+      getJson('lgas.json'),
+      getJson('wards.json'),
+    ]);
+
+    if (states.length !== 37 || lgas.length !== 774 || wards.length !== 8809) {
+      throw new Error(`Unexpected INEC data counts: ${states.length} states, ${lgas.length} LGAs, ${wards.length} wards.`);
+    }
 
     const stateIds = new Map();
     for (const state of states) {
