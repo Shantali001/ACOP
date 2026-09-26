@@ -69,6 +69,8 @@ function whereClause(conditions: string[], prefix = 'where ') {
   return conditions.length ? `${prefix}${conditions.join(' and ')}` : '';
 }
 
+const normalizedNameSql = (column: string) => `regexp_replace(lower(trim(${column})), '[^a-z0-9]', '', 'g')`;
+
 async function countQuery(sql: string, values: unknown[] = []) {
   const result = await pool.query<{ count: string | number }>(sql, values);
   return Number(result.rows[0]?.count ?? 0);
@@ -549,6 +551,28 @@ campaignDashboardRouter.get('/wards', async (req, res, next) => {
     const state = (req.query.state as string | undefined)?.trim();
     const lga = (req.query.lga as string | undefined)?.trim();
     if (!state || !lga) return res.json([]);
+
+    const hasReferenceData = await pool.query<{ exists: boolean }>(
+      "select to_regclass('public.wards') is not null as exists",
+    );
+
+    if (hasReferenceData.rows[0]?.exists) {
+      const referenceResult = await pool.query<{ ward: string }>(
+        `select min(trim(w.name)) as ward
+         from wards w
+         join lgas l on l.id = w.lga_id
+         join states s on s.id = l.state_id
+         where ${normalizedNameSql('s.name')} = ${normalizedNameSql('$1')}
+           and ${normalizedNameSql('l.name')} = ${normalizedNameSql('$2')}
+         group by ${normalizedNameSql('w.name')}
+         order by ${normalizedNameSql('min(w.name)')}`,
+        [state, lga],
+      );
+      if (referenceResult.rows.length) {
+        res.json(referenceResult.rows.map((row) => row.ward));
+        return;
+      }
+    }
 
     const result = await pool.query<{ ward: string }>(
       `select min(ward_name) as ward
